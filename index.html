@@ -383,6 +383,10 @@ h2{font-weight:900;font-stretch:78%;font-size:clamp(34px,5vw,54px);line-height:.
 #clear.dawn .stats dd .grade{--lc:#8a4022!important}
 @media (prefers-reduced-motion:reduce){.stats dd .grade.gs{animation:none}}
 @media (max-width:720px){ .lvls{grid-template-columns:repeat(6,minmax(0,1fr))} }
+/* v198 (Jihu): Black, Clear and Silver looked alike; their stems now look like the real plastics */
+.sw-black .stem .cr{fill:#141418;stroke:#d6d6d6;stroke-width:1.4}.sw-black .stem .gl{opacity:.12}
+.sw-clear .stem .cr{fill:rgba(190,240,255,.16);stroke:#c9f3ff;stroke-width:1.4}.sw-clear .stem .gl{fill:#9fe6f5;opacity:.28}
+.sw-silver .stem .cr{fill:url(#silv)}.sw-silver .stem .gl{fill:#e6eaef;opacity:.16}
 </style>
 
 <div id="app">
@@ -636,7 +640,7 @@ const PRESSURES = [
   ['Brown','Words arrive at uneven gaps.','#b07a4f'],
   ['Black','Rarer words show up.','#d6d6d6'],
   ['Yellow','A virus every 15 words, and bad ones can come back to back.','#f4c430'],
-  ['Clear','Letters erode away as words near the bottom.','#cfe8f2'],
+  ['Clear','Letters erode away as words near the bottom.','#9fe6f5'],
   ['Silver','Words fall 10% faster.','#b8c4d0'],
   ['Blue','Every miss drops an extra word.','#4f8ff7'],
   ['Navy','Trust your fingers. You won\'t see what you type.','#3b5bdb']
@@ -2336,9 +2340,9 @@ function renderMenu(){
   $('lvls').innerHTML = LEVELS.filter(L=>L.n<=show).map(L=>{
     const open = L.n<=6 || L.n<=save.maxReached; // 7-8 stay locked until reached, so their traps are a surprise
     return `<button class="lvl${reveal&&L.n>8?' reveal':''}" style="--lc:${LCOL[L.n-1]};${reveal&&L.n>8?`animation-delay:${0.35+(L.n-9)*0.28}s`:''}" data-l="${L.n}" aria-pressed="${G.sel===L.n}" ${open?'':'disabled'}><span class="n">${L.n}</span><span class="t">${open?TITLES[L.n-1]:''}</span></button>`;}).join('');
-  const STEM='<svg class="stem" viewBox="0 0 40 40" aria-hidden="true"><rect x="2" y="2" width="36" height="36" rx="6" class="hs"/><circle cx="20" cy="20" r="12" class="gl"/><path d="M17 9h6v8h8v6h-8v8h-6v-8H9v-6h8z" class="cr"/></svg>';
+  const STEM='<svg class="stem" viewBox="0 0 40 40" aria-hidden="true"><defs><linearGradient id="silv" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".45" stop-color="#9aa4b0"/><stop offset=".55" stop-color="#e6eaef"/><stop offset="1" stop-color="#7c8692"/></linearGradient></defs><rect x="2" y="2" width="36" height="36" rx="6" class="hs"/><circle cx="20" cy="20" r="12" class="gl"/><path d="M17 9h6v8h8v6h-8v8h-6v-8H9v-6h8z" class="cr"/></svg>';
   const pmax = Math.min(8,(save.pressure[G.char]??-1)+1); if(G.pres>pmax) G.pres=pmax;
-  $('pres').innerHTML = PRESSURES.map(([n,,c],i)=>`<button class="sw" style="--pc:${c}" data-p="${i}" aria-pressed="${G.pres===i}" ${i<=pmax?'':'disabled'}>${STEM}<span class="l">${n}</span></button>`).join('');
+  $('pres').innerHTML = PRESSURES.map(([n,,c],i)=>`<button class="sw sw-${n.toLowerCase()}" style="--pc:${c}" data-p="${i}" aria-pressed="${G.pres===i}" ${i<=pmax?'':'disabled'}>${STEM}<span class="l">${n}</span></button>`).join('');
   $('presDetail').innerHTML = G.pres===0 ? `Standard rules. Clear level 8${save.maxReached>=9?'+':''} to open the Red switch for ${CHARS[G.char].name}.`
     : `Score ×${(1+0.1*G.pres).toFixed(1)}. Stacks with every switch before it:<ol>${PRESSURES.slice(1,G.pres+1).map(([n,d,c],i)=>`<li class="${i+1===G.pres?'cur':''}"><span style="color:${c}">${n}</span>: ${d}</li>`).join('')}</ol>`;
   const anySw = Object.keys(save.pressure).length>0; $('strikesRow').hidden=!anySw; if(!anySw) G.strikes=false;
