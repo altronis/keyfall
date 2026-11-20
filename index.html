@@ -320,6 +320,7 @@ h2{font-weight:900;font-stretch:78%;font-size:clamp(34px,5vw,54px);line-height:.
 .char[disabled] .glyph{opacity:.35}
 .char .lk{position:absolute;top:calc(100% + 8px);left:-8px;right:-8px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--mute)}
 .char.medal{padding:0;border:2px solid transparent;background:linear-gradient(var(--capTop),var(--cap)) padding-box,var(--mg) border-box;background-size:100% 100%,300% 100%}
+.char.medal:hover:not(:disabled){background:linear-gradient(#3a4362,#2a3149) padding-box,var(--mg) border-box;background-size:100% 100%,300% 100%} /* keep the medal border on hover */
 .char.medal[aria-pressed="true"]{background:linear-gradient(color-mix(in srgb,var(--c) 40%,var(--capTop)),color-mix(in srgb,var(--c) 22%,var(--cap))) padding-box,var(--mg) border-box;background-size:100% 100%,300% 100%}
 .cdetail{border:0;padding:0;gap:6px;min-width:0}
 .cdetail .nmrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -796,7 +797,11 @@ function buildFn(id,d){
   L.avgLen=mean(pool); L.wps=(wpm*5/60)/(L.avgLen+1)*J.k; // made-up and unfamiliar words get a little slack
   return FN_CACHE[key]=L;
 }
-const autoScore = n => LEVELS.slice(0,n-1).reduce((s,L)=>s+L.req*L.avgLen*L.mult,0);
+// scoring v195 (Jihu): each level has a fixed pot. 70% is split evenly over its required words, 30% is a catch bonus (pot x catch rate squared),
+// where catch rate = required words destroyed / (destroyed + dropped); viruses, green, vaccinated, backfire and Ascent words don't count. HP bonus = 0.1% of the pot per HP left.
+const POT = [120,210,330,470,670,900,1200,1530,1930,2400,3000,4000];
+const countable = w => !w.virus && !w.green && !w.backfire && !w.vax && !w.rise;
+const autoScore = n => LEVELS.slice(0,n-1).reduce((s,L)=>s+0.7*POT[L.n-1],0);
 
 // ---------- persistence ----------
 const store = {
@@ -1301,7 +1306,7 @@ function beginDrill(){
   setMode('drill'); banner('Warm-up drill · no damage · Enter skips'); SFX.music(MUSIC_FOR[G.lvl.cfg.n-1]);
 }
 function beginPlay(){
-  G.words=[]; G.input=''; if(G.run) G.run.dirty=false; G.lvl.drill=false; G.lvl.drillDone=true; G.lvl.spawnT=0; G.lvl.spawned=0; G.lvl.correct=0;
+  G.words=[]; G.input=''; if(G.run) G.run.dirty=false; G.lvl.drill=false; G.lvl.drillDone=true; G.lvl.caught=0; G.lvl.dropped=0; G.lvl.spawnT=0; G.lvl.spawned=0; G.lvl.correct=0;
   G.run.stunUntil=0; G.run.grace=false; G.vfx={};
   G.lvl.phase=0; G.lvl.lullUntil=0; G.lvl.greenNext=false;
   setMode('play'); banner(G.lvl.cfg.phases ? BOSS_TAUNT[0] : G.lvl.cfg.fn ? G.lvl.cfg.fn.name : `Night ${G.lvl.cfg.n}`, G.lvl.cfg.phases?4:1.8); if(SFX.musicIdx!==MUSIC_FOR[G.lvl.cfg.n-1]) SFX.music(MUSIC_FOR[G.lvl.cfg.n-1]);
@@ -1317,16 +1322,18 @@ function spawnAscent(){
   w.fx = 0.08 + 0.84*((A.i%6)/5) + (Math.random()-.5)*0.06; w.fx=Math.max(0,Math.min(1,w.fx)); // reads left to right in rows of six
   w.amp=0.3; w.w=measure(w); G.words.push(w); A.i++; A.next=G.t+ASCENT_GAP;
 }
+function catchBonus(pm){ const c=G.lvl.caught||0, d=G.lvl.dropped||0, t=c+d, rate=t?c/t:1; return {c,t,rate,pts:Math.round(0.3*POT[G.lvl.cfg.n-1]*rate*rate*pm)}; }
+const catchRow = cb => [`Typed ${cb.c} of ${cb.t} (${Math.round(cb.rate*100)}%)`, cb.pts];
 function fnCleared(){
   const L=G.lvl.cfg, r=G.run, J=L.fn;
-  const bonus=Math.round(Math.floor(r.hp)*L.mult); r.score+=bonus;
+  const bonus=Math.round(Math.floor(r.hp)*0.001*POT[L.n-1]), cb=catchBonus(1); r.score+=bonus+cb.pts;
   const sc=Math.floor(r.score), prev=(save.fn[J.id]||{})[L.n]||0, nb=!NODMG && sc>prev;
   if(nb){ (save.fn[J.id]||(save.fn[J.id]={}))[L.n]=sc; persist(); }
   setMode('clear'); SFX.music(null); SFX.clear();
   $('clRun').innerHTML=runTagHTML(r);
   $('clLabel').textContent=`Fn Keys · ${J.name} cleared · like level ${L.n}`;
   $('clTitle').textContent=J.win;
-  const rows=[['Words typed',G.lvl.correct],['Letter points',Math.round(G.lvl.levelScore)],[`HP bonus (${Math.floor(r.hp)} × ${L.mult.toFixed(1)})`,Math.round(bonus)],['Score',sc],['Best at this difficulty',nb?`${sc} (new best)`:Math.max(prev,sc)]];
+  const rows=[['Level score',Math.round(G.lvl.levelScore)],[`HP bonus (${Math.floor(r.hp)} HP)`,bonus],catchRow(cb),['Best at this difficulty',nb?`${sc.toLocaleString()} (new best)`:Math.max(prev,sc).toLocaleString()]];
   $('clStats').innerHTML=rows.map(([a,b])=>`<dt>${a}</dt><dd>${b}</dd>`).join('');
   $('clGo').textContent='Back to Fn Keys'; $('clMenu').hidden=true; $('clHint').textContent='';
   $('clMetrics').hidden=false; $('clMetrics').innerHTML=metricsHTML(r);
@@ -1348,7 +1355,7 @@ function levelCleared(){
   const pm = 1+0.1*r.pressure;
   const hpLeft = r.strikesOn ? Math.round(100*(maxStrikes(r.char)-r.strikes)/maxStrikes(r.char)) : Math.floor(r.hp);
   let restored=0; if(r.strikesOn && r.strikes>0 && L.n<12){ restored=Math.min(r.char==='cole'?2:1, r.strikes); r.strikes-=restored; } // Cole gets two back (Jihu v119: suits the long late levels) // each clear gives one strike back // Three Strikes: the bonus counts strikes left
-  const bonus = Math.round(hpLeft*L.mult*pm); r.score += bonus; r.levelsCleared++;
+  const bonus = Math.round(hpLeft*0.001*POT[L.n-1]*pm), cb=catchBonus(pm); r.score += bonus + cb.pts; r.levelsCleared++;
   // clearing the boss at a pressure opens the next one for this character
   let presUp=false;
   if(L.n>=8 && !NODMG && r.pressure>(save.pressure[r.char]??-1)){ save.pressure[r.char]=r.pressure; presUp = r.pressure<8; }
@@ -1365,9 +1372,8 @@ function levelCleared(){
   $('clRun').innerHTML = runTagHTML(r);
   $('clLabel').textContent = BOSS&&BOSS[0] ? `Night ${L.n} survived · ${BOSS[0]} down` : `Night ${L.n} survived`;
   $('clTitle').textContent = golden ? 'You carried it home.' : BOSS ? BOSS[1] : (CLEAR_LINES[L.n-1] || 'Cleared.');
-  const rows = [...(L.n===12?[]:[['Words typed',G.lvl.correct]]),['Letter points',Math.round(G.lvl.levelScore)],[`${r.strikesOn?'Keys bonus':'HP bonus'} (${hpLeft} × ${L.mult.toFixed(1)}${pm>1?` × ${pm.toFixed(1)}`:''})`,Math.round(bonus)]];
+  const rows = [['Level score',Math.round(G.lvl.levelScore)],[r.strikesOn?`Keys bonus (${hpLeft}% left)`:`HP bonus (${hpLeft} HP)`,bonus],catchRow(cb)];
   if(head) rows.push([`Head start (levels 1 to ${r.startLevel-1})`,Math.round(head)]);
-  rows.push(['Run score',Math.floor(r.score)]);
   if(newly.length) rows.push(['Unlocked',newly.map(k=>CHARS[k].name).join(', ')]);
   if(golden) rows.push(['Ascent',`${CHARS[r.char].name} carried every word home`]);
   if(restored) rows.push([restored>1?'Keys repaired':'Key repaired',`${maxStrikes(r.char)-r.strikes} of ${maxStrikes(r.char)} left`]);
@@ -1624,9 +1630,11 @@ function submit(){
   const Lc=G.lvl.cfg, cap = Lc.phases ? Lc.phases.slice(0,(G.lvl.phase||0)+1).reduce((t,p)=>t+p.n,0) : Lc.req;
   const counts = !target.virus && !target.backfire && !G.lvl.ascent && G.lvl.correct<cap;
   if(counts){ M.typed++; crWord(target.text); if(/[qxz]/.test(target.text)) r.cr.qxz=(r.cr.qxz||0)+1; } // run total of required words, matching what scores
-  if(counts){ const pts = good*Lc.mult*(1+0.1*r.pressure); r.score+=pts; G.lvl.levelScore+=pts; }
+  const share = 0.7*POT[Lc.n-1]/Lc.req*(1+0.1*r.pressure);
+  if(countable(target)) G.lvl.caught=(G.lvl.caught||0)+1;
+  if(counts){ r.score+=share; G.lvl.levelScore+=share; }
   if(target.virus && r.char==='vira' && r.strikesOn && r.strikes>0 && target.effect && VIRUSES[target.effect].good){ r.strikes--; popup(b,'key repaired','#a77bf2',-24); } // Three Strikes: a good virus she shoots erases a strike
-  if(target.boss){ const pts = good*Lc.mult*(1+0.1*r.pressure)*3; r.score+=pts; G.lvl.levelScore+=pts; popup(b,`final word +${fmt(pts)}`,LCOL[Lc.n-1],-24); SFX.clear(); }
+  if(target.boss){ const pts = share*3; r.score+=pts; G.lvl.levelScore+=pts; popup(b,`final word +${fmt(pts)}`,LCOL[Lc.n-1],-24); SFX.clear(); }
   if(target.virus) triggerVirus(target.effect||rollVirus(),b); else if(counts) G.lvl.correct++;
   if(target.green) heal(b);
   if(target.vax) vaxHeal(b);
@@ -1635,7 +1643,7 @@ function submit(){
   }
   if(r.char==='neio'){
     const hits = G.words.filter(o=>{const c=boxOf(o);return c.y+c.h>0&&c.x<b.x+b.w&&c.x+c.w>b.x&&c.y<b.y+b.h&&c.y+c.h>b.y;});
-    for(const o of hits){ const c=boxOf(o); remove(o); shatter(o,c,'#b8ec62',false); if(o.green) heal(c); if(o.vax) vaxHeal(c); if(o.virus) triggerVirus(o.effect||rollVirus(),c); } // overlap sets viruses off too
+    for(const o of hits){ const c=boxOf(o); if(countable(o)) G.lvl.caught=(G.lvl.caught||0)+1; remove(o); shatter(o,c,'#b8ec62',false); if(o.green) heal(c); if(o.vax) vaxHeal(c); if(o.virus) triggerVirus(o.effect||rollVirus(),c); } // overlap sets viruses off too
     if(hits.length){ SFX.pop(); if(!reduced) G.fx.push({k:'ring',t:0,life:.45,x:b.x+b.w/2,y:b.y+b.h/2,r:Math.max(b.w,BH*3)}); r.m.overlap+=hits.length; popup(b,`overlap ×${hits.length}`,'#b8ec62',20);
       if(r.strikesOn){ r.ovKills=(r.ovKills||0)+1; if(r.ovKills>=NEIO_OV && r.strikes>0){ r.ovKills-=NEIO_OV; r.strikes--; popup(b,'key repaired','#b8ec62',-24); } if(r.strikes===0) r.ovKills=Math.min(r.ovKills,NEIO_OV); } } // Three Strikes: every NEIO_OV overlap submissions (any submit that clears 2+ words) erase a strike (Jihu v121)
   }
@@ -1779,6 +1787,7 @@ function strike(b){
 }
 function hitBottom(w,b){
   const r=G.run; G.lastHit={w,b:{...b},t:G.t};
+  if(countable(w)) G.lvl.dropped=(G.lvl.dropped||0)+1;
   r.m.missed++;
   if(NODMG){ grudge(w.text); popup(b,'no damage','#8a92a8',-10); return; }
   if(vOn('aegis')){ popup(b,'blocked','#62c9f2',-10); SFX.block(); return; } // Aegis first so Maki keeps her shield
