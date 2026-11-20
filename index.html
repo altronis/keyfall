@@ -375,6 +375,14 @@ h2{font-weight:900;font-stretch:78%;font-size:clamp(34px,5vw,54px);line-height:.
 .volrow{display:inline-flex;align-items:center;gap:10px;font-size:15px;font-weight:700;color:var(--paper)}
 .volsl{width:150px;accent-color:var(--amber)}
 .volnum{font-family:var(--mono);font-size:13px;color:var(--mute);min-width:4ch}
+.lvls{grid-template-columns:repeat(var(--nl,8),minmax(0,84px))}
+.stats dd .grade{font-family:var(--display);font-weight:900;font-stretch:80%;font-size:46px;line-height:.9;color:var(--lc);vertical-align:middle}
+.stats dd .grade.gs{background:linear-gradient(100deg,var(--lc) 0%,var(--lc) 38%,#fff 50%,var(--lc) 62%,var(--lc) 100%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:gshine 2.4s linear infinite}
+@keyframes gshine{from{background-position:120% 0}to{background-position:-130% 0}}
+.stats dd .gpts{margin-left:12px;vertical-align:middle}
+#clear.dawn .stats dd .grade{--lc:#8a4022!important}
+@media (prefers-reduced-motion:reduce){.stats dd .grade.gs{animation:none}}
+@media (max-width:720px){ .lvls{grid-template-columns:repeat(6,minmax(0,1fr))} }
 </style>
 
 <div id="app">
@@ -1322,18 +1330,27 @@ function spawnAscent(){
   w.fx = 0.08 + 0.84*((A.i%6)/5) + (Math.random()-.5)*0.06; w.fx=Math.max(0,Math.min(1,w.fx)); // reads left to right in rows of six
   w.amp=0.3; w.w=measure(w); G.words.push(w); A.i++; A.next=G.t+ASCENT_GAP;
 }
-function catchBonus(pm){ const c=G.lvl.caught||0, d=G.lvl.dropped||0, t=c+d, rate=t?c/t:1; return {c,t,rate,pts:Math.round(0.3*POT[G.lvl.cfg.n-1]*rate*rate*pm)}; }
-const catchRow = cb => [`Typed ${cb.c} of ${cb.t} (${Math.round(cb.rate*100)}%)`, cb.pts];
+// v196 (Jihu): the clear screen shows HP left, typed rate and a letter grade; the grade pays a share of the level's pot (the 70% word share is added quietly)
+// letter from typed rate (S 98%+, A 93%+, B 85%+, C 70%+, else D), '+' for finishing with 60%+ of max HP (or glass keys)
+const GRADE_PAY = {'S+':.40,'S':.36,'A+':.33,'A':.30,'B+':.26,'B':.23,'C+':.19,'C':.16,'D':.10};
+function gradeOf(pm){ const r=G.run, c=G.lvl.caught||0, d=G.lvl.dropped||0, t=c+d, rate=t?c/t:1;
+  const hpF = r.strikesOn ? (maxStrikes(r.char)-r.strikes)/maxStrikes(r.char) : Math.floor(r.hp)/maxHP();
+  const L = rate>=0.98?'S':rate>=0.93?'A':rate>=0.85?'B':rate>=0.70?'C':'D', g = L + (L!=='D' && hpF>=0.6 ? '+' : '');
+  return {c,t,rate,g,kl:r.strikesOn?maxStrikes(r.char)-r.strikes:0,pts:Math.round(GRADE_PAY[g]*POT[G.lvl.cfg.n-1]*pm)}; }
+const gradeRows = (gr,lc) => { const r=G.run;
+  return [[r.strikesOn?'Keys left':'HP left', r.strikesOn?`${gr.kl} of ${maxStrikes(r.char)}`:Math.floor(r.hp)],
+    ['Typed',`${gr.c} of ${gr.t} (${Math.round(gr.rate*100)}%)`],
+    ['Grade',`<span class="grade${gr.g[0]==='S'?' gs':''}" style="--lc:${lc}">${gr.g}</span><span class="gpts">+${gr.pts.toLocaleString()}</span>`]]; };
 function fnCleared(){
   const L=G.lvl.cfg, r=G.run, J=L.fn;
-  const bonus=Math.round(Math.floor(r.hp)*0.001*POT[L.n-1]), cb=catchBonus(1); r.score+=bonus+cb.pts;
+  const gr=gradeOf(1); r.score+=gr.pts;
   const sc=Math.floor(r.score), prev=(save.fn[J.id]||{})[L.n]||0, nb=!NODMG && sc>prev;
   if(nb){ (save.fn[J.id]||(save.fn[J.id]={}))[L.n]=sc; persist(); }
   setMode('clear'); SFX.music(null); SFX.clear();
   $('clRun').innerHTML=runTagHTML(r);
   $('clLabel').textContent=`Fn Keys · ${J.name} cleared · like level ${L.n}`;
   $('clTitle').textContent=J.win;
-  const rows=[['Level score',Math.round(G.lvl.levelScore)],[`HP bonus (${Math.floor(r.hp)} HP)`,bonus],catchRow(cb),['Best at this difficulty',nb?`${sc.toLocaleString()} (new best)`:Math.max(prev,sc).toLocaleString()]];
+  const rows=[...gradeRows(gr,LCOL[L.n-1]),['Best at this difficulty',nb?`${sc.toLocaleString()} (new best)`:Math.max(prev,sc).toLocaleString()]];
   $('clStats').innerHTML=rows.map(([a,b])=>`<dt>${a}</dt><dd>${b}</dd>`).join('');
   $('clGo').textContent='Back to Fn Keys'; $('clMenu').hidden=true; $('clHint').textContent='';
   $('clMetrics').hidden=false; $('clMetrics').innerHTML=metricsHTML(r);
@@ -1353,9 +1370,9 @@ function levelCleared(){
   const golden = !!(G.lvl.ascent);
   if(golden && !NODMG){ save.gold[r.char]=true; persist(); }
   const pm = 1+0.1*r.pressure;
-  const hpLeft = r.strikesOn ? Math.round(100*(maxStrikes(r.char)-r.strikes)/maxStrikes(r.char)) : Math.floor(r.hp);
+  const gr = gradeOf(pm); // graded before the clear repairs a glass key
   let restored=0; if(r.strikesOn && r.strikes>0 && L.n<12){ restored=Math.min(r.char==='cole'?2:1, r.strikes); r.strikes-=restored; } // Cole gets two back (Jihu v119: suits the long late levels) // each clear gives one strike back // Three Strikes: the bonus counts strikes left
-  const bonus = Math.round(hpLeft*0.001*POT[L.n-1]*pm), cb=catchBonus(pm); r.score += bonus + cb.pts; r.levelsCleared++;
+  r.score += gr.pts; r.levelsCleared++;
   // clearing the boss at a pressure opens the next one for this character
   let presUp=false;
   if(L.n>=8 && !NODMG && r.pressure>(save.pressure[r.char]??-1)){ save.pressure[r.char]=r.pressure; presUp = r.pressure<8; }
@@ -1372,7 +1389,7 @@ function levelCleared(){
   $('clRun').innerHTML = runTagHTML(r);
   $('clLabel').textContent = BOSS&&BOSS[0] ? `Night ${L.n} survived · ${BOSS[0]} down` : `Night ${L.n} survived`;
   $('clTitle').textContent = golden ? 'You carried it home.' : BOSS ? BOSS[1] : (CLEAR_LINES[L.n-1] || 'Cleared.');
-  const rows = [['Level score',Math.round(G.lvl.levelScore)],[r.strikesOn?`Keys bonus (${hpLeft}% left)`:`HP bonus (${hpLeft} HP)`,bonus],catchRow(cb)];
+  const rows = gradeRows(gr,LCOL[L.n-1]);
   if(head) rows.push([`Head start (levels 1 to ${r.startLevel-1})`,Math.round(head)]);
   if(newly.length) rows.push(['Unlocked',newly.map(k=>CHARS[k].name).join(', ')]);
   if(golden) rows.push(['Ascent',`${CHARS[r.char].name} carried every word home`]);
@@ -2315,6 +2332,7 @@ function renderMenu(){
     <ul>${sc.bullets.map(b=>`<li>${b}</li>`).join('')}</ul>`;
   // v180 (Jihu, like the Korean game): only 1-8 show until level 9 is reached, so 8 looks like the end; 9-12 then fade in once
   const show = save.maxReached>=9 ? 12 : 8, reveal = show===12 && !store.get(LK('seen9'),false); if(reveal) store.set(LK('seen9'),true);
+  $('lvls').style.setProperty('--nl',show); // v196 (Jihu): all levels on one row
   $('lvls').innerHTML = LEVELS.filter(L=>L.n<=show).map(L=>{
     const open = L.n<=6 || L.n<=save.maxReached; // 7-8 stay locked until reached, so their traps are a surprise
     return `<button class="lvl${reveal&&L.n>8?' reveal':''}" style="--lc:${LCOL[L.n-1]};${reveal&&L.n>8?`animation-delay:${0.35+(L.n-9)*0.28}s`:''}" data-l="${L.n}" aria-pressed="${G.sel===L.n}" ${open?'':'disabled'}><span class="n">${L.n}</span><span class="t">${open?TITLES[L.n-1]:''}</span></button>`;}).join('');
