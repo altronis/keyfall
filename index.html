@@ -387,6 +387,10 @@ h2{font-weight:900;font-stretch:78%;font-size:clamp(34px,5vw,54px);line-height:.
 .sw-black .stem .cr{fill:#141418;stroke:#d6d6d6;stroke-width:1.4}.sw-black .stem .gl{opacity:.12}
 .sw-clear .stem .cr{fill:rgba(190,240,255,.16);stroke:#c9f3ff;stroke-width:1.4}.sw-clear .stem .gl{fill:#9fe6f5;opacity:.28}
 .sw-silver .stem .cr{fill:url(#silv)}.sw-silver .stem .gl{fill:#e6eaef;opacity:.16}
+.cdiff{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--mute)}
+.cdiff b{display:inline-flex;gap:4px}
+.cdiff i{width:14px;height:12px;border-radius:3px;background:#2a3047;box-shadow:0 2px 0 #11141f}
+.cdiff i.on{background:var(--c);box-shadow:0 2px 0 color-mix(in srgb,var(--c) 45%,#000)}
 </style>
 
 <div id="app">
@@ -620,6 +624,7 @@ const VDESC = {ritardando:'Words fall at half speed and fewer spawn for 12 s.', 
 function renderVirusList(){ const seen=store.get('vseen',{});
   $('vlist').innerHTML=Object.entries(VIRUSES).map(([k,v])=>seen[k] ? `<div class="vrow ${v.good?'good':'bad'}"><b>${v.name}</b><span>${VDESC[k]}</span></div>` : `<div class="vrow unk"><b>???</b><span>Not seen yet.</span></div>`).join(''); }
 
+const CHAR_DIFF = {maki:1,cole:2,arsten:3,neio:3,vira:2}; // v199 (Jihu): a difficulty rating replaces the stat bars on the menu
 const VIRUS_EVERY = 20, VCOL = '#ff8a3d';
 const BASE_DMG = 2/3; // HP per letter before the character modifier
 const CHARS = {
@@ -2332,7 +2337,7 @@ function renderMenu(){
   const sc=CHARS[G.char], smd=save.medal[G.char]||0, sp=save.pressure[G.char]??-1; $('charDetail').style.setProperty('--c',sc.hex);
   $('charDetail').innerHTML = `<div class="nmrow"><span class="nm">${sc.name}</span>${sp>=0?`<span class="pbadge" style="--pc:${PRESSURES[sp][2]}" title="Highest switch cleared">${PRESSURES[sp][0]}</span>`:''}${smd?`<span class="mbadge m${smd}" title="${MEDAL_TIPS[smd]}">${MEDAL_TIPS[smd].split(':')[0]}</span>`:''}</div>
     <div class="tag">${sc.tag} · <i>${sc.job}</i></div>
-    <div class="sdots">${Object.entries(sc.stats).map(([n,v])=>`<span>${n} <b>${'<i class="on"></i>'.repeat(v)}${'<i></i>'.repeat(5-v)}</b></span>`).join('')}</div>
+    <div class="cdiff">Difficulty <b>${[1,2,3].map(x=>`<i class="${x<=CHAR_DIFF[G.char]?'on':''}"></i>`).join('')}</b></div>
     <ul>${sc.bullets.map(b=>`<li>${b}</li>`).join('')}</ul>`;
   // v180 (Jihu, like the Korean game): only 1-8 show until level 9 is reached, so 8 looks like the end; 9-12 then fade in once
   const show = save.maxReached>=9 ? 12 : 8, reveal = show===12 && !store.get(LK('seen9'),false); if(reveal) store.set(LK('seen9'),true);
