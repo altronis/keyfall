@@ -1804,12 +1804,12 @@ function strike(b){
 }
 function hitBottom(w,b){
   const r=G.run; G.lastHit={w,b:{...b},t:G.t};
-  if(countable(w)) G.lvl.dropped=(G.lvl.dropped||0)+1;
   r.m.missed++;
   if(NODMG){ grudge(w.text); popup(b,'no damage','#8a92a8',-10); return; }
   if(vOn('aegis')){ popup(b,'blocked','#62c9f2',-10); SFX.block(); return; } // Aegis first so Maki keeps her shield
   if(r.char==='maki' && r.shield){ r.shield=false; r.m.blocks++; popup(b,'blocked','#62c9f2',-10); SFX.block(); shieldFx(b); return; }
   grudge(w.text); // blocked words don't come back in Last Stand
+  if(countable(w)) G.lvl.dropped=(G.lvl.dropped||0)+1; // v197 (Jihu): only words that got through count against the typed rate; Aegis and Maki's shield blocks don't
   r.cr.fell++;
   if(w.boss){ const dmg=r.strikesOn?0:Math.max(0,Math.min(Math.round(w.text.length*BASE_DMG*CHARS[r.char].dmg*2),r.hp-1)); r.hp-=dmg; G.lvl.dmgTaken+=dmg; SFX.hurt(); G.fx.push({k:'edge',t:0,life:.6}); popup(b,dmg?'−'+fmt(dmg):'missed it','#ef6461',-10); if(dmg) flashHP('hurt'); return; } // level 4's final word hurts but never ends the run
   if(r.strikesOn){ strike(b); return; } // no HP in Three Strikes: a fallen word is a strike
