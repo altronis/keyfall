@@ -1917,7 +1917,7 @@ function render(){
   const inv = G.mode==='play' && vOn('inversion');
   const fade = pOn(5) && G.mode==='play' && !G.lvl.ascent; // Clear (Erosion, Jihu v109): from 40% of the way down letters vanish one by one in a random order per word, all gone at 75%; gaps stay blank, typed letters stay, boxes stay
   ctx.save();
-  for(const w of G.words){
+  for(const w of (G.paused?[]:G.words)){ // v208 (Jihu): words are hidden while paused, so a pause can't be used to plan
     const b=boxOf(w), danger=Math.max(0,(w.p-0.7)/0.3);
     // plate
     ctx.fillStyle = w.breath ? '#2a1f18' : w.gold ? '#2b2310' : w.green ? '#123826' : w.vax ? '#0f2738' : w.virus ? '#3a200f' : `rgba(23,29,48,${0.78})`;
@@ -1952,7 +1952,7 @@ function render(){
     if(inv) ctx.restore();
   }
   ctx.restore();
-  { const fz=boxFuzzy(); if(fz.best && !hidden()){ const b=boxOf(fz.best.w), rr=Math.max(4.5,FS*0.22), gap=rr*2.7, n=fz.best.a-fz.best.e; // filled pips only (Jihu v137): typos left; Neio / Mutation: typos left for the word you're typing, on top of the words
+  { const fz=boxFuzzy(); if(fz.best && !hidden() && !G.paused){ const b=boxOf(fz.best.w), rr=Math.max(4.5,FS*0.22), gap=rr*2.7, n=fz.best.a-fz.best.e; // filled pips only (Jihu v137): typos left; Neio / Mutation: typos left for the word you're typing, on top of the words
       let x=b.x+b.w+rr+18; if(x+gap*n>FX0+FW) x=b.x-18-rr-gap*(n-1); const y=b.y+b.h/2; ctx.save();
       for(let i=0;i<n;i++){ const left=true; ctx.beginPath(); ctx.arc(x+i*gap,y,left?rr:rr*0.7,0,7); if(left){ ctx.fillStyle='#b8ec62'; ctx.shadowColor='#b8ec62'; ctx.shadowBlur=8; ctx.fill(); } else { ctx.strokeStyle='#b8ec62aa'; ctx.lineWidth=1.5; ctx.stroke(); } }
       ctx.restore(); } }
