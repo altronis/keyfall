@@ -860,7 +860,7 @@ const store = {
 };
 const LK = k => LAYOUT_ID==='colemak' ? k : LAYOUT_ID+'.'+k; // progress, records and key stats are per layout
 let OSLAY = !!store.get('oslayout',false); // read letters from e.key instead of remapping physical keys
-let NODMG = PUBLIC ? false : store.get('nodmg',false); // test option (Auto play): the game types for you, nothing costs HP, scores and records are not saved
+let NODMG = PUBLIC ? false : store.get('nodmg',false), AUTOHURT = !PUBLIC && store.get('autohurt',false); // v202 (Jihu): AUTOHURT lets auto play take damage, to see how far it gets; // test option (Auto play): the game types for you, nothing costs HP, scores and records are not saved
 const save = {maxReached:store.get(LK('maxReached'),6),neio:store.get('neio',false),arsten:store.get('arsten',false),vira:store.get('vira',false),best:store.get(LK('best'),0),char:store.get('char','maki'),records:store.get(LK('records'),{}),pressure:store.get(LK('pressure'),{}),gold:store.get(LK('gold'),{}),fn:store.get(LK('fn'),{}),fnOpen:store.get(LK('fnOpen'),false),medal:store.get(LK('medal'),{}),endOpen:store.get(LK('endOpen'),false),endless:store.get(LK('endless'),{})};
 const keyStats = store.get(LK('keyStats'),{}); // letter -> [hits, misses]
 function persist(){store.set(LK('maxReached'),save.maxReached);store.set('neio',save.neio);store.set('arsten',save.arsten);store.set('vira',save.vira);store.set(LK('best'),save.best);store.set('char',save.char);store.set(LK('records'),save.records);store.set(LK('pressure'),save.pressure);store.set(LK('gold'),save.gold);store.set(LK('fn'),save.fn);store.set(LK('fnOpen'),save.fnOpen);store.set(LK('medal'),save.medal);store.set(LK('endOpen'),save.endOpen);store.set(LK('endless'),save.endless);store.set(LK('keyStats'),keyStats);}
@@ -1851,7 +1851,7 @@ function update(dt){
     else { const n=G.lvl.cfg.n, boss=!G.lvl.cfg.fn&&(n===4||n===8||n===12); fadeTo(levelCleared, G.lvl.ascent?1.6:boss?1.0:0.5, G.lvl.ascent?0.6:boss?0.35:0.1, boss?0.7:0.45); } }
 }
 function viraDodge(b,w){ G.lastHit={w,b:{...b},t:G.t};
-  const r=G.run; r.m.dodged++; if(NODMG) return;
+  const r=G.run; r.m.dodged++; if(NODMG && !AUTOHURT) return;
   if(vOn('aegis')){ popup(b,'blocked','#62c9f2',-10); SFX.block(); return; }
   if(r.strikesOn) return; // no HP in Three Strikes: her fallen bad viruses are harmless like everyone's
   const vd=viraDodgeHP(); r.hp-=vd; SFX.hurt(); G.fx.push({k:'edge',t:0,life:.4}); r.m.dodgeHP+=vd; popup(b,'−'+vd,'#ef6461',-10); flashHP('hurt'); G.fx.push({k:'floor',t:0,life:.45,x:b.x+b.w/2});
@@ -1865,7 +1865,7 @@ function strike(b){
 function hitBottom(w,b){
   const r=G.run; G.lastHit={w,b:{...b},t:G.t};
   r.m.missed++;
-  if(NODMG){ grudge(w.text); popup(b,'no damage','#8a92a8',-10); return; }
+  if(NODMG && !AUTOHURT){ grudge(w.text); popup(b,'no damage','#8a92a8',-10); return; }
   if(vOn('aegis')){ popup(b,'blocked','#62c9f2',-10); SFX.block(); return; } // Aegis first so Maki keeps her shield
   if(r.char==='maki' && r.shield){ r.shield=false; r.m.blocks++; popup(b,'blocked','#62c9f2',-10); SFX.block(); shieldFx(b); return; }
   grudge(w.text); // blocked words don't come back in Last Stand
@@ -2460,7 +2460,7 @@ let volBlip=0; for(const el of document.querySelectorAll('.volsl')) el.addEventL
 volLabel();
 $('resume').onclick=()=>setPause(false);
 $('quit').onclick=()=>{setPause(false);if(G.run){if(!NODMG && !G.run.fn) save.best=Math.max(save.best,Math.floor(G.run.score));persist();}toMenu();};
-{ const nb=$('devnodmg'); const lab=()=>{ nb.textContent = NODMG?'Auto play: on (test)':'Auto play: off'; nb.setAttribute('aria-pressed',NODMG); }; lab(); nb.onclick=()=>{ NODMG=!NODMG; store.set('nodmg',NODMG); lab(); }; }
+{ const nb=$('devnodmg'); const lab=()=>{ nb.textContent = !NODMG?'Auto play: off':AUTOHURT?'Auto play: on, takes damage':'Auto play: on, no damage'; nb.setAttribute('aria-pressed',NODMG); }; lab(); nb.onclick=()=>{ if(!NODMG){ NODMG=true; AUTOHURT=false; } else if(!AUTOHURT) AUTOHURT=true; else { NODMG=false; AUTOHURT=false; } store.set('nodmg',NODMG); store.set('autohurt',AUTOHURT); lab(); }; } // off, on with no damage, on taking damage
 let DEVSPEED = 1; // test option: with Auto play on, the game runs 1x, 4x or 8x (not saved)
 { const b=$('devspeed'); const lab=()=>{ b.textContent=`Test speed: ${DEVSPEED}x`+(DEVSPEED>1&&!NODMG?' (needs Auto play)':''); b.setAttribute('aria-pressed',DEVSPEED>1); }; lab(); b.onclick=()=>{ DEVSPEED = DEVSPEED===1?4:DEVSPEED===4?8:1; lab(); }; $('devnodmg').addEventListener('click',lab); }
 const devCredits=n=>{ const had=G.run; if(!had) G.run=newRun(n); showCredits(n,()=>{ if(!had) G.run=null; renderMenu(); setMode('options'); }); }; // preview with an empty run's stats
