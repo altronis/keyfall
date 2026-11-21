@@ -1049,6 +1049,7 @@ const SFX = (()=>{
     if(!mus.track||mus.paused||mus.frozen||!ac||!musOn) return;
     if(mus.next<ac.currentTime) mus.next=ac.currentTime+0.02; // tab was asleep: don't burst-play the backlog
     while(!mus.solo && mus.next<ac.currentTime+0.12){ playStep(mus.track,mus.step,mus.next); mus.next+=60/(mus.track.bpm*mus.rate)/4; mus.step=(mus.step+1)%(16*4*ORDER.length); }
+    if(mus.stand && mus.heart!=null && musGate){ const k=Math.max(0,Math.min(1,mus.heart/0.25)); musGate.gain.setTargetAtTime(k*k,ac.currentTime,0.4); } // v200 (Jihu): from 10 Last Stand words left the song fades out, only the heartbeat stays
     if(mus.stand && mus.heart!=null){ if(mus.hnext<ac.currentTime) mus.hnext=Math.max(mus.hnext,ac.currentTime+0.02); // heartbeat: 1 s apart at 40 words left, 0.42 s near the end
       while(mus.hnext<ac.currentTime+0.12){ const t=mus.hnext; tone(62,0.16,{vol:0.5,to:38,when:t,out:musBus}); tone(56,0.14,{vol:0.32,to:34,when:t+0.17,out:musBus}); mus.hnext+=0.42+0.58*Math.max(0,Math.min(1,mus.heart)); } }
   },25);
