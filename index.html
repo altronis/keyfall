@@ -455,7 +455,7 @@ h2{font-weight:900;font-stretch:78%;font-size:clamp(34px,5vw,54px);line-height:.
             <button class="btn ghost sm tog" id="devspeed"></button>
             <button class="btn ghost sm" id="devcred8">Credits L8</button>
             <button class="btn ghost sm" id="devcred12">Credits L12</button>
-            <button class="btn ghost sm" id="devreset">Reset saved progress</button>
+            <button class="btn ghost sm" id="devreset" style="color:#ef6461">Reset saved progress</button>
           </div>
         </div>
         <div class="row"><button class="btn" id="optBack" data-key="Esc">Main menu</button></div>
@@ -2534,7 +2534,7 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 document.fonts && document.fonts.ready.then(resize);
-if(PUBLIC){ for(const id of ['devnodmg','devspeed','devcred8','devcred12','devreset']) $(id).remove(); $('testLabel').textContent='Shortcuts'; }
+if(PUBLIC){ for(const id of ['devnodmg','devspeed','devcred8','devcred12']) $(id).remove(); /* v203 (Jihu): the public build keeps Reset saved progress (press twice) */ $('testLabel').textContent='Shortcuts'; }
 resize(); renderMenu(); setMode('menu'); try{ if(sessionStorage.getItem('kfBackToOptions')){ sessionStorage.removeItem('kfBackToOptions'); setMode('options'); } }catch(e){} requestAnimationFrame(frame);
 window.__kf = {showCredits,fadeTo,levelCleared,LEVELS_WIDE,startFn,buildFn,FN,SFX,update,startLevel,beginPlay,measure,triggerVirus,rollVirus,spawnVirus,VIRUSES,G,LEVELS,CHARS,submit,errorsBetween,autoScore,save,heal};
 </script>
