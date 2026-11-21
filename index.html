@@ -757,6 +757,39 @@ function buildLevel(i,wide){ // i is 1-based; wide = Black switch (Wide Pool): d
 }
 const LEVELS = Array.from({length:12},(_,i)=>buildLevel(i+1));
 const LEVELS_WIDE = Array.from({length:12},(_,i)=>buildLevel(i+1,true)); // Black switch and up
+// ---------- Endless (v201, Jihu): opens by clearing level 12 on the layout. Waves of 40 words, a quarter each from the level 8, 9, 10 and 11 sets,
+// starting at level 12's first speed and +3 WPM a wave. Every fourth wave is a boss wave: a night 4, night 8 or Last Stand echo (each once before any repeats), ending on a one-breath word.
+const END_N = 40, END_W0 = BOSS_WPM[0], END_STEP = 3, END_GRUDGE_AFTER = 3; // grudge words join after the first 3 waves, as every fourth word
+const END_TEXT = "The nights are over. The words aren't. Every wave comes a little faster.";
+function buildEndless(wide){ const B=(wide?LEVELS_WIDE:LEVELS)[11], sets=B.cats.slice(0,4).map(c=>c.pool);
+  const L={n:12,endless:true,wpm:END_W0,req:Infinity,mn:B.mn,mx:B.mx,fall:B.fall,mult:B.mult,text:END_TEXT,letters:B.letters,newLetters:new Set(),newPool:[],
+    cats:sets.map(pool=>({p:.25,pool})), sets:sets.map(x=>new Set(x))};
+  L.pool=[...new Set(sets.flat())]; L.avgLen=L.cats.reduce((t,c)=>t+c.p*mean(c.pool),0);
+  L.long=[{p:1,pool:L.pool.filter(w=>w.length>=8)}]; // night 8 echo: long words only
+  return L; }
+const ENDLESS = [buildEndless(false), buildEndless(true)];
+const END_COLS = ['#62c9f2','#52d98a','#f4c430']; // normal waves cycle blue, green, yellow; boss waves are red
+const endCol = k => k%4===0 ? '#ef6461' : END_COLS[(k-1)%4%3];
+function endWave(k){ const L=G.lvl.cfg, E=G.lvl.ew; E.wave=k; E.boss=k%4===0; E.kind=null; let cats=L.cats, n=END_N;
+  if(E.boss){ if(!E.bag.length){ E.bag=['review','old','stand']; for(let i=2;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [E.bag[i],E.bag[j]]=[E.bag[j],E.bag[i]]; } } E.kind=E.bag.pop();
+    if(E.kind==='review'){ const m=E.miss, top=Math.max(...m), ix=m.map((v,i)=>v===top?i:-1).filter(i=>i>=0), i=ix[Math.floor(Math.random()*ix.length)]; // 3/4 from the set you missed most, 1/4 the usual mix
+      cats=[{p:.75,pool:L.cats[i].pool},...L.cats.map(c=>({p:.0625,pool:c.pool}))]; }
+    if(E.kind==='old'){ cats=L.long; n=25; } } // fewer words, all 8+ letters
+  const avg=cats.reduce((t,c)=>t+c.p*mean(c.pool),0), wpm=END_W0+END_STEP*(k-1);
+  Object.assign(E,{cats,n,avg,wpm,wps:(wpm*5/60)/(avg+1)*LAYOUT.adj[4],phase:'run'}); }
+function nextWave(){ const E=G.lvl.ew, r=G.run, wasBoss=E.boss;
+  if(wasBoss && r.strikesOn && r.strikes>0){ r.strikes--; shimmer(); popup({x:W/2,y:H*0.55,w:0},'key repaired','#cfe8f7',0); } // Glass Keys: a boss wave repairs a key
+  endWave(E.wave+1); G.lvl.correct=0; G.lvl.breath=null; G.lvl.lullUntil=G.t+2.2; G.lvl.spawnT=0;
+  banner(`Wave ${E.wave}`,2); SFX.clearCall();
+  if(E.boss){ SFX.music(5); if(E.kind==='review') SFX.darkMusic(true); } else if(wasBoss) SFX.music(4); }
+function endlessTick(){ const E=G.lvl.ew;
+  if(E.phase==='run' && G.lvl.correct>=E.n && !G.words.length){ if(E.boss){ E.phase='breath'; G.lvl.breath={next:G.t+1.8}; } else nextWave(); }
+  if(E.phase==='breath'){ const F=G.lvl.breath; if(F && !G.words.some(w=>w.breath) && G.t>=F.next) spawnBreath(); } }
+function startEndless(){
+  G.run=newRun(12); const r=G.run; r.endless=true; r.autoScore=0; r.headStartPaid=true; r.startLevel=13;
+  G.lvl={cfg:ENDLESS[r.pressure>=3?1:0],drill:false,correct:0,spawned:0,spawnT:0,dmgTaken:0,letters:0,levelScore:0,etotal:0};
+  showPre(); }
+const endKey = r => `${r.char}.${r.pressure}${r.strikesOn?'g':''}`; // record per character and switch (Glass Keys kept apart)
 // ---------- Fn Keys: a bonus pack of joke levels, opened by clearing level 8 ----------
 const FN_DATA = {"thes":["abate","aberrant","abeyance","abjure","abnegation","abrogate","abscond","abstemious","abstruse","acerbic","acrimony","adumbrate","alacrity","amalgamate","ameliorate","anachronism","anathema","anodyne","antediluvian","antipathy","apocryphal","apostate","apposite","approbation","arcane","ascetic","asperity","assiduous","assuage","atavism","augury","auspicious","avarice","bacchanalian","banal","bellicose","belligerent","blandishment","bombastic","boorish","bowdlerize","bucolic","burgeon","cacophony","cajole","callipygian","callow","calumny","canard","capricious","castigate","catharsis","caustic","cavil","censorious","chicanery","churlish","circumlocution","circumspect","clamorous","cogent","commensurate","complaisant","concomitant","conflagration","consternation","contrite","contumacious","convivial","copious","coruscate","credulous","cupidity","cynosure","dearth","debacle","decorous","defenestrate","deleterious","demagogue","denigrate","deprecate","derision","desiccate","desultory","diaphanous","diatribe","didactic","diffident","dilatory","dilettante","disabuse","discomfit","disparate","dissemble","dissonance","doggerel","dogmatic","dolorous","ebullient","eclectic","edify","effrontery","effulgent","egregious","elegiac","eleemosynary","elucidate","emollient","encomium","enervate","engender","ephemeral","epicurean","epistemology","equanimity","equivocate","erudite","esoteric","eulogy","euphemism","evanescent","exacerbate","excoriate","exculpate","execrable","exigent","exonerate","expiate","expurgate","extemporaneous","facetious","fallacious","fastidious","fatuous","fecund","feckless","felicitous","fervid","fetid","flagitious","flippant","florid","flummox","foment","fractious","fulminate","fulsome","furtive","gainsay","garrulous","gauche","germane","grandiloquent","gregarious","guileless","gustatory","hackneyed","halcyon","harangue","hegemony","heterodox","histrionic","hubris","iconoclast","idiosyncratic","ignominious","imbroglio","immutable","impecunious","imperious","impervious","impetuous","implacable","importune","impugn","inchoate","incipient","incorrigible","indefatigable","indolent","ineffable","inexorable","ingenuous","inimical","iniquitous","innocuous","insipid","insouciant","intransigent","inveigle","inveterate","irascible","itinerant","jejune","jocular","juxtapose","laconic","lachrymose","lackadaisical","lambaste","lascivious","lassitude","laudatory","licentious","limpid","lissome","loquacious","lucubrate","lugubrious","magnanimous","maladroit","malapropism","malfeasance","malinger","martinet","maudlin","mellifluous","mendacious","mercurial","meretricious","misanthrope","mollify","moribund","munificent","myopic","nadir","nefarious","neophyte","nonplussed","obdurate","obfuscate","obsequious","obstreperous","obviate","officious","onerous","opprobrium","ossify","ostentatious","palliate","panacea","paragon","pariah","parsimonious","pathos","paucity","pedantic","pellucid","penurious","perfidious","perfunctory","peripatetic","pernicious","perspicacious","pertinacious","petulant","phlegmatic","platitude","plethora","polemic","portentous","precipitate","prevaricate","probity","proclivity","prodigal","profligate","prolix","propinquity","propitiate","prosaic","proscribe","pugnacious","pulchritude","pusillanimous","quiescent","quixotic","quotidian","rancorous","recalcitrant","recondite","redolent","refractory","remonstrate","reprobate","repudiate","rescind","reticent","ribald","sagacious","salubrious","sanctimonious","sanguine","sardonic","saturnine","scintilla","sedulous","sesquipedalian","solicitous","somnolent","soporific","specious","spurious","stentorian","stolid","strident","sybarite","sycophant","taciturn","tantamount","temerity","tenacious","tendentious","timorous","tirade","torpid","tractable","transmogrify","trenchant","truculent","turgid","turpitude","ubiquitous","umbrage","unctuous","untenable","usurious","vacillate","vapid","venal","veracious","verbose","vicissitude","vilify","vituperate","vociferous","voluble","winsome","xenophobic","zealot","zephyr","borborygmus","crepuscular","defenestration","perspicuity","obloquy","pleonasm","syzygy","apotheosis","abecedarian","bloviate","cantankerous","pettifogger","mumpsimus","snollygoster","widdershins","kerfuffle","brouhaha","bumbershoot","collywobbles","discombobulate","gobbledygook","hullabaloo","lollygag","skedaddle","rambunctious","codswallop","flibbertigibbet","curmudgeon","persnickety","cattywampus","hornswoggle","bamboozle","shenanigans","malarkey"],"teh":["teh","recieve","definately","wierd","seperate","occured","untill","accomodate","acheive","adress","alot","arguement","begining","beleive","buisness","calender","cemetary","collegue","comming","commited","concious","curiousity","decieve","dissapoint","embarass","enviroment","existance","familar","finaly","foriegn","freind","goverment","gaurd","happend","harrass","hieght","idiosyncracy","immediatly","independant","interupt","knowlege","liason","libary","lisence","maintainance","millenium","mischievious","neccessary","noticable","ocasion","occurance","peice","persistant","posession","prefered","privelege","publically","recomend","refered","relevent","religous","rember","resistence","rythm","sieze","similiar","sincerly","speach","succesful","suprise","tendancy","therfore","threshhold","tommorow","tounge","truely","unforseen","unfortunatly","vaccum","vegtable","wich","writting","yeild","beautifull","becuase","breif","cheif","completly","concensus","critisism","dilemna","dosent","ecstacy","excercise","explaination","facinating","flourescent","fourty","gratefull","greatful","grammer","guarentee","hygene","ignorence","imediately","inocent","inteligent","jewelery","lenght","liesure","magnificient","manuever","medecine","miniscule","mispell","neice","nieghbor","noone","occassion","oppurtunity","paralell","particulary","pasttime","perseverence","playwrite","posible","potatoe","preceeding","presense","proffesional","promiss","pronounciation","quesion","questionaire","realy","reciept","rediculous","referance","remeber","repitition","restarant","sacrafice","scissers","secratary","sentance","sergent","sheild","shedule","sophmore","strenght","studing","sucess","sufficent","surley","temperture","tatoo","thier","tought","tomatos","tradgedy","tremendus","twelth","tyrany","usualy","vaccuum","vicous","visable","wendsday","whereever","withold","wonderfull","youre","acknowlege","aggresive","apparantly","aquire","athiest","basicly","bizzare","camoflage","carrer","catagory","changable","comittee","competance","congradulations","conscous","controll","convinient","decison","desparate","develope","diffrent","dissapear","dumbell","embarras","equiptment","exagerate","excelent","extreem","febuary","fullfil","geneology","harrasment","heros","hipocrite","hypocracy","imaginery","incidently","influencial","intresting","irresistable","knowledgable","labratory","lazer","liberry","mathmatics","mideval","momento","morgage","neccesarily","nucular","ocurring","offical","ommision","oportunity","orignal","outragous","paticular","perminent","perscription","persue","plagerize","politican","posessed","prejudise","privelage","probaly","propoganda","psycology","pumkin","quater","reccomend","rehersal","relize","resturant","rasberry","safty","sandwhich","scenary","seige","simular","sargent","sincerley","speciman","stomache","strech","supposably","temprature","tommorrow","transfered","truley","unecessary","upholstry","vacinate","vengence","villian","welfair","wellcome","wholy","wilfull","writen","yatch","arround","awfull","acident","accross","addres","agressive","amatuer","anual","appearence","assasinate","begginer","bicicle","boundry","brillant","cancelation","carefull","cieling","collumn","comparitive","concieve","condem","consciencious","definatly","dependant","dicision","dissipline","efficent","eigth","enterance","exellent","existant","fasinate","flys","foward","freindly","garantee","greif","hankerchief","humerous","hurrah","illegable","immitate","inbetween","intergrate","jist","judgemental","kernal","knifes","lisense","lonelyness","managment","marrage","medival","mischeif","mysterous","naturaly","nickle","ninty","occurence","opose","ourselfs","paralel","pharoah","pleasent","preperation","primative","purposly","recieved","recieving","reconize","refrence","remberance","resevoir","rythym","sacreligious","scedule","sence","shineing","similer","sissors","skillfull","smoothe","sovereignity","specificly","stoped","strenghten","sucessful","suseptible","symetry","tecnology","tennant","thrid","tomorow","torpedos","tradgic","unfortunatley","useing","vigilent","wheather","whitch","writeing"],"PHA_PRE":["zy","vex","quel","prax","lum","cor","dex","fen","mir","ost","tral","nex","ver","ab","zol","dur","clo","sel","bri","flo","zan","ty","pro","ri","axo","om","nu","kel","ven","sar","tor","pex","cyl","ral","vin","mel","quin","ex","lo","gly","hy"],"PHA_MID":["o","i","a","e","u","lo","tre","va","mi","xa","qui","ro","zi","na","te","lu","ca","fe","so","di","ga","vo","ne","ri"],"PHA_SUF":["trexa","done","pril","zole","mab","vir","statin","lexin","xil","pam","floxacin","dronate","quil","zine","cort","mycin","prazole","sartan","vudine","tadine","lidex","zepam","nex","rex","vex","vanza","tryx","lipra","mox","zumab","dryl","xeto","quel","pirin","zetta"],"FUR_ON":["bj","fj","kl","sk","str","gr","sv","tr","fl","br","h","m","l","r","n","v","k","t","s","b","g","d","p","st","sn","sm","kn","hj","sl"],"FUR_V":["a","e","i","o","u","y","aa","oe","ja","jo","ia","ei"],"FUR_CO":["rn","ll","lm","nd","rk","ck","lt","st","x","n","m","r","l","k","g","s","ng","ss","tt","rd","mp","lk"],"FUR_END":["sund","vik","bo","strand","berg","holm","nes","by","torp","lund","dal","fors","gard","sta","ten","mark","heten","ax","ang","sen","ra","backa","hult","rum","fjall","kulla"],"vow":["why","try","fly","dry","sky","cry","gym","spy","shy","myth","rhythm","fry","sync","myths","hymn","psych","rhythms","sly","hymns","lymph","gyms","ply","cyst","crypt","pry","lynx","things","system","trying","thanks","pretty","months","myself","strong","rights","church","simply","systems","growth","sports","spring","highly","flight","mostly","starts","supply","strength","thinks","length","skills","slightly","stress","plenty","flying","plants","twenty","lights","slowly","bright","brings","stands","switch","branch","crying","hardly","monthly","symptoms","nights","shortly","strongly","hungry","mystery","tracks","blocks","drinks","struck","crystal","string","thrown","physics","styles","thirty","whilst","script","lyrics","stretch","brands","trends","checks","symbol","partly","worthy","knight","stocks","springs","strict","worlds","shirts","slight","flights","trucks","fights","cherry","trophy","charts","scratch","strictly","blacks","grants","tricks","sticks","hybrid","cycling","mighty","gently","prints","throws","shorts","frankly","knights","symbols","comply","sketch","smells","strings","shifts","sympathy","firmly","kindly","skinny","lightly","sharks","sprint","tricky","spends","storms","costly","cycles","shells","lengths","stamps","thirds","cracks","sharply","clutch","ghosts","chicks","crowds","dynasty","browns","prompt","scroll","snacks","strips","lengthy","splash","promptly","sights","typing","strengths","wholly","spells","bricks","filthy","psychic","sticky","trusts","warmth","shrimp","crystals","depths","python","softly","symphony","bypass","sparks","swords","tightly","twitch","clergy","drying","psycho","thirsty","crafts","firstly","rightly","shrink","classy","clicks","thrill","scripts","wildly","stylish","trench","cyclists","flyers","lastly","scotch","thumbs","truths","strand","gladly","thighs","cliffs","crunch","swings","spying","births","screws","stitch","symptom","thirst","styled","trolls","vastly","freshly","granny","champs","knocks","mystic","drills","fluffy","sloppy","clocks","cyclist","drafts","skirts","calmly","fronts","graphs","charms","stroll","swiftly","pastry","shocks","syntax","tyranny","brandy","stalls","symmetry","twelfth","bursts","chilly","chords","clowns","crappy","splits","twists","blasts","catchy","rhymes","stacks","chunks","francs","nightly","styling","grumpy","trendy","trumps","brunch","crowns","martyr","plight","stormy","wrongly","glitch","brightly","clumsy","frenzy","sturdy","chubby","glossy","mildly","trunks","chills","frying","psyche","standby","straps","climbs","scrolls","sprung","chants","martyrs","sherry","strands","stylist","thrift","wrists","glands","gritty","rhythmic","scraps","skulls","crispy","hybrids","shrubs","wrench","tyrant","spills","stunts","blends","crumbs","myrtle","prompts","worldly","grossly","blindly","cramps","psalms","wrongs","chunky","clerks","strung","blinds","fright","starch","subtly","clinch","shafts","smelly","tights","boldly","grizzly","shabby","stills","blurry","harshly","richly","thinly","blanks","shorty","cypress","flashy","floppy","straws","thorns","tracts","yachts","blight","grassy","warmly","cryptic","pantry","staffs","crunchy","cyborg","methyl","scrubs","sketchy","synergy","thingy","crafty","smiths","synonyms","bubbly","fondly","frosty","sprays","chests","gentry","stinks","shaggy","shrunk","childs","dwarfs","humbly","pranks","cyclic","shreds","stalks","thrills","cranky","flanks","starry","swamps","thrash","cuddly","ghostly","stuffs","planks","synonym","scents","slutty","sprang","stinky","stumps","cyclops","flurry","shrewd","stench","stings","flimsy","snitch","sporty","cloths","crisps","shrinks","swells","wrecks","bitchy","flicks","sentry","strewn","bluntly","cystic","ghastly","gymnast","sparkly","lynching","scrappy","sprints","thirdly","thwart","fifths","shards","stubbs","clamps","shoddy","flirty","flocks","prickly","sickly","smacks","stingy","stuffy","glyph","glyphs","nymph","nymphs","tryst","trysts","sphynx","crwth","cwm","twelfths","angsts","sylph","sylphs","gypsum","crypts","cysts","lymphs","flyby","shyly","slyly","dryly","spryly","wryly","drywall","myrrh","pygmy","synth","synths","phlegm","schmaltz","schnapps","kvetch","borscht","pfft","brrr","shh","hmm","psst","tsktsk"],"meet":["synergy","synergize","synergies","leverage","leveraging","bandwidth","deliverable","deliverables","stakeholder","stakeholders","actionable","paradigm","alignment","aligned","onboarding","offboarding","roadmap","roadmaps","scalable","scalability","pivot","pivoting","disrupt","disruptive","disruption","ideate","ideation","incentivize","monetize","monetization","optimize","optimization","streamline","streamlining","holistic","proactive","proactively","granular","visibility","transparency","accountability","ownership","empower","empowerment","touchpoint","touchpoints","workstream","workstreams","learnings","takeaway","takeaways","followup","offline","sync","syncup","standup","retro","retrospective","sprint","sprints","backlog","kanban","agile","scrum","milestone","milestones","kickoff","headcount","runway","burnrate","traction","benchmark","benchmarking","baseline","bottleneck","bottlenecks","pipeline","pipelines","funnel","conversion","engagement","metrics","metric","dashboard","dashboards","analytics","quarterly","forecast","forecasting","budget","budgets","fiscal","revenue","profitability","margin","margins","overhead","outsource","outsourcing","offshore","nearshore","vertical","verticals","horizontal","ecosystem","ecosystems","platform","platforms","solution","solutions","solutioning","framework","frameworks","methodology","methodologies","wheelhouse","ballpark","boilerplate","brainstorm","brainstorming","whiteboard","whiteboarding","mindshare","mindset","proposition","propositions","differentiator","differentiators","competency","competencies","upskill","upskilling","reskill","reskilling","headwinds","tailwinds","pushback","buyin","signoff","greenlight","escalate","escalation","escalations","prioritize","prioritization","deprioritize","cadence","cadences","recap","recaps","agenda","agendas","minutes","memo","memos","deck","decks","slide","slides","spreadsheet","spreadsheets","calendar","invite","invites","reschedule","rescheduled","postpone","timezone","offsite","offsites","teambuilding","icebreaker","icebreakers","synergistic","crossfunctional","cohort","cohorts","persona","personas","journey","journeys","northstar","moonshot","moonshots","unicorn","unicorns","gamechanger","gamechanging","bleedingedge","cuttingedge","nextgen","futureproof","robustness","resilience","resilient","agility","nimble","lean","leaner","rightsize","rightsizing","restructure","restructuring","reorg","reorgs","downsizing","layoff","layoffs","severance","transition","transitions","handoff","handover","deliver","delivering","execute","execution","executional","strategic","strategize","strategy","tactical","tactics","initiative","initiatives","objective","objectives","okr","okrs","kpi","kpis","roi","ask","asks","partner","partnering","partnership","collaborate","collaboration","collab","looping","circling","noted"],"olde":["forsooth","wherefore","prithee","betwixt","methinks","anon","verily","thou","thee","thine","thy","hast","hath","doth","dost","art","wilt","shalt","ere","oft","nay","yea","aye","alas","alack","fie","hither","thither","whither","hence","thence","whence","mayhap","perchance","peradventure","wherein","whereupon","henceforth","heretofore","erstwhile","hark","lo","behold","beseech","bestow","bequeath","begone","bedight","bedeck","besmirch","betide","bewitch","canst","couldst","didst","hadst","wouldst","shouldst","mayst","knowest","thinkest","sayest","goest","cometh","goeth","sayeth","knoweth","giveth","taketh","loveth","maketh","seemeth","runneth","ye","olde","shoppe","towne","knave","varlet","villein","serf","squire","yeoman","liege","milord","milady","sirrah","gadzooks","zounds","egad","huzzah","odsbodikins","marry","troth","morrow","eventide","fortnight","twain","thrice","whilom","yore","yon","yonder","nigh","afar","abed","aright","asunder","forthwith","hereafter","thereof","whereof","wherewithal","naught","aught","nought","ought","belike","certes","enow","ween","wot","wist","quoth","spake","smote","slew","begat","brake","clave","drave","holpen","gotten","swound","swoon","kirtle","doublet","jerkin","hose","ruff","codpiece","farthingale","wimple","halberd","pike","poleaxe","broadsword","rapier","buckler","gauntlet","mead","ale","sack","flagon","tankard","trencher","pottage","gruel","victuals","viands","larder","buttery","scullery","garderobe","hearth","tapestry","minstrel","jester","bard","troubadour","herald","page","wench","lass","lad","goodwife","goodman","gaffer","gammer","beldam","crone","harlot","strumpet","rogue","rascal","scoundrel","rapscallion","scallywag","ruffian","churl","lout","cur","caitiff","miscreant","poltroon","coxcomb","popinjay","braggart","lickspittle","mountebank","charlatan","apothecary","alchemist","almanac","physick","tincture","poultice","leech","humours","choler","bile","melancholy","sanguine","phlegm","plague","pestilence","murrain","ague","quinsy","dropsy"],"ST_SUF":["ify","ly","io","ster","hub","labs","pal","bot","zy","ly","ify","io","ly","ster"]};
 const FN = [
@@ -828,9 +861,9 @@ const store = {
 const LK = k => LAYOUT_ID==='colemak' ? k : LAYOUT_ID+'.'+k; // progress, records and key stats are per layout
 let OSLAY = !!store.get('oslayout',false); // read letters from e.key instead of remapping physical keys
 let NODMG = PUBLIC ? false : store.get('nodmg',false); // test option (Auto play): the game types for you, nothing costs HP, scores and records are not saved
-const save = {maxReached:store.get(LK('maxReached'),6),neio:store.get('neio',false),arsten:store.get('arsten',false),vira:store.get('vira',false),best:store.get(LK('best'),0),char:store.get('char','maki'),records:store.get(LK('records'),{}),pressure:store.get(LK('pressure'),{}),gold:store.get(LK('gold'),{}),fn:store.get(LK('fn'),{}),fnOpen:store.get(LK('fnOpen'),false),medal:store.get(LK('medal'),{})};
+const save = {maxReached:store.get(LK('maxReached'),6),neio:store.get('neio',false),arsten:store.get('arsten',false),vira:store.get('vira',false),best:store.get(LK('best'),0),char:store.get('char','maki'),records:store.get(LK('records'),{}),pressure:store.get(LK('pressure'),{}),gold:store.get(LK('gold'),{}),fn:store.get(LK('fn'),{}),fnOpen:store.get(LK('fnOpen'),false),medal:store.get(LK('medal'),{}),endOpen:store.get(LK('endOpen'),false),endless:store.get(LK('endless'),{})};
 const keyStats = store.get(LK('keyStats'),{}); // letter -> [hits, misses]
-function persist(){store.set(LK('maxReached'),save.maxReached);store.set('neio',save.neio);store.set('arsten',save.arsten);store.set('vira',save.vira);store.set(LK('best'),save.best);store.set('char',save.char);store.set(LK('records'),save.records);store.set(LK('pressure'),save.pressure);store.set(LK('gold'),save.gold);store.set(LK('fn'),save.fn);store.set(LK('fnOpen'),save.fnOpen);store.set(LK('medal'),save.medal);store.set(LK('keyStats'),keyStats);}
+function persist(){store.set(LK('maxReached'),save.maxReached);store.set('neio',save.neio);store.set('arsten',save.arsten);store.set('vira',save.vira);store.set(LK('best'),save.best);store.set('char',save.char);store.set(LK('records'),save.records);store.set(LK('pressure'),save.pressure);store.set(LK('gold'),save.gold);store.set(LK('fn'),save.fn);store.set(LK('fnOpen'),save.fnOpen);store.set(LK('medal'),save.medal);store.set(LK('endOpen'),save.endOpen);store.set(LK('endless'),save.endless);store.set(LK('keyStats'),keyStats);}
 function stat(c){return keyStats[c]||(keyStats[c]=[0,0]);}
 function key(c,ok){ // lifetime stats for teaching + this run's stats for the results screen
   stat(c)[ok?0:1]++;
@@ -1225,7 +1258,9 @@ function sampleWeighted(pool){
   let r=Math.random()*tot; for(let i=0;i<pool.length;i++){r-=ws[i];if(r<=0)return pool[i];} return pool[pool.length-1];
 }
 // words you missed or mistyped from level 7 on; Last Stand throws them back at you
-function grudge(word){ const r=G.run; if(!r||G.mode!=='play'||G.lvl.cfg.n<7) return; r.grudge[word]=(r.grudge[word]||0)+1; }
+function grudge(word){ const r=G.run; if(!r||G.mode!=='play'||G.lvl.cfg.n<7) return; r.grudge[word]=(r.grudge[word]||0)+1;
+  const L=G.lvl.cfg, E=G.lvl.ew; if(L.endless && E){ L.sets.forEach((x,i)=>{ if(x.has(word)) E.miss[i]++; }); // endless: each missed word goes back into the deck once, at a random spot
+    if(!E.deck.includes(word)) E.deck.splice(Math.floor(Math.random()*(E.deck.length+1)),0,word); } }
 function pickGrudge(onScreen){
   // shuffled once when Last Stand starts, then drawn in order, each word once
   if(!G.lvl.lsDeck){ const d=Object.keys(G.run.grudge); G.run.cr.deck=d.length; for(let i=d.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [d[i],d[j]]=[d[j],d[i]]; } G.lvl.lsDeck=d; }
@@ -1236,12 +1271,14 @@ function pickWord(L,drill){
   const onScreen = new Set(G.words.map(w=>w.text));
   // Last Stand: every other word comes from your mistakes, the rest from the normal mix
   if(!drill && L.phases && G.lvl.phase===L.phases.length-1 && (G.lvl.lsN=(G.lvl.lsN||0)+1)%2===1){ const g=pickGrudge(onScreen); if(g) return g; }
+  if(!drill && L.endless){ const E=G.lvl.ew, every=E.kind==='stand'?2:E.wave>END_GRUDGE_AFTER?4:0; // endless: grudge words every fourth word after wave 3, every other word in a Last Stand echo
+    if(every && (E.gn=(E.gn||0)+1)%every===0){ const i=E.deck.findIndex(w=>!onScreen.has(w)); if(i>=0) return G.lvl.gword=E.deck.splice(i,1)[0]; } }
   for(let tries=0;tries<30;tries++){
     let w;
     if(drill) w = L.newPool[Math.floor(Math.random()*L.newPool.length)];
     else if(L.newPool.length && L.newPool.length<L.pool.length && !(L.mini && G.lvl.rv) && Math.random()<1/3) w = L.newPool[Math.floor(Math.random()*L.newPool.length)];
     else {
-      const cats = L.phases ? L.phases[G.lvl.phase||0].cats : (L.mini && G.lvl.rv) ? L.mini.review : L.cats;
+      const cats = L.endless ? G.lvl.ew.cats : L.phases ? L.phases[G.lvl.phase||0].cats : (L.mini && G.lvl.rv) ? L.mini.review : L.cats;
       let r=Math.random(), cat=cats[cats.length-1];
       for(const c of cats){if((r-=c.p)<=0){cat=c;break;}}
       w = sampleWeighted(cat.pool);
@@ -1259,6 +1296,7 @@ function spawn(){
   if(!drill){ G.run.spawnCount++; green = G.run.char!=='arsten' && !G.run.strikesOn && G.run.spawnCount % 50 === 0; } // one green word in 50 everywhere, bosses included (Jihu 2026-11-19)
   const w = makeWord(text,L,drill); w.green=green; w.w = measure(w);
   if(!drill && L.phases && G.lvl.phase===L.phases.length-1 && G.run.grudge[text]) w.grudge=true;
+  if(!drill && L.endless && G.lvl.gword===text){ w.grudge=true; G.lvl.gword=null; }
   G.words.push(w); G.lvl.spawned++;
   return text;
 }
@@ -1279,6 +1317,7 @@ function spawnVirus(L,slot){
 
 // ---------- level flow ----------
 function startLevel(n,fromMenu){
+  if(n===13) return startEndless();
   if(fromMenu) G.run = newRun(n);
   const L = (G.run.pressure>=3 ? LEVELS_WIDE : LEVELS)[n-1]; G.run.level = n;
   if(n>save.maxReached){save.maxReached=n;}
@@ -1299,6 +1338,8 @@ function showPre(){
     $('preNote').hidden=true; $('preText').textContent=L.text; $('preKeysWrap').hidden=true;
     $('preHint').textContent=''; $('preGo').textContent='Begin'; return;
   }
+  if(L.endless){ $('preLabel').textContent='After the last night'; $('preTitle').textContent='Endless'; $('preTitle').style.color=LCOL[11]; $('preLabel').style.color=LCOL[11];
+    $('preNote').hidden=true; $('preText').textContent=L.text; $('preKeysWrap').hidden=true; $('preHint').textContent=''; $('preGo').textContent='Begin'; return; }
   $('preLabel').textContent = `Night ${L.n}`; // v185 (Jihu): 'Night' at story moments, 'Level' in menus and rules
   $('preTitle').textContent = TITLES[L.n-1];
   $('preTitle').style.color = LCOL[L.n-1]; $('preLabel').style.color = LCOL[L.n-1];
@@ -1327,6 +1368,7 @@ function beginPlay(){
   G.words=[]; G.input=''; if(G.run) G.run.dirty=false; G.lvl.drill=false; G.lvl.drillDone=true; G.lvl.caught=0; G.lvl.dropped=0; G.lvl.spawnT=0; G.lvl.spawned=0; G.lvl.correct=0;
   G.run.stunUntil=0; G.run.grace=false; G.vfx={};
   G.lvl.phase=0; G.lvl.lullUntil=0; G.lvl.greenNext=false;
+  if(G.lvl.cfg.endless){ G.lvl.ew={bag:[],miss:[0,0,0,0],deck:[],gn:0}; endWave(1); G.lvl.etotal=0; setMode('play'); banner('Wave 1',2); SFX.music(4); return; }
   setMode('play'); banner(G.lvl.cfg.phases ? BOSS_TAUNT[0] : G.lvl.cfg.fn ? G.lvl.cfg.fn.name : `Night ${G.lvl.cfg.n}`, G.lvl.cfg.phases?4:1.8); if(SFX.musicIdx!==MUSIC_FOR[G.lvl.cfg.n-1]) SFX.music(MUSIC_FOR[G.lvl.cfg.n-1]);
 }
 function startAscent(){
@@ -1388,6 +1430,7 @@ function levelCleared(){
   if(L.n>=8 && !NODMG && r.pressure>(save.pressure[r.char]??-1)){ save.pressure[r.char]=r.pressure; presUp = r.pressure<8; }
   // head start for skipped levels is paid only once the starting level is beaten
   let fnUp=false; if(L.n>=8 && !save.fnOpen){ save.fnOpen=true; fnUp=true; }
+  let endUp=false; if(L.n===12 && !save.endOpen){ save.endOpen=true; endUp=true; } // v201: clearing level 12 opens Endless on this layout
   let head=0; if(!r.headStartPaid){ r.headStartPaid=true; head=r.autoScore; r.score+=head; }
   // clearing a character's level or any later one unlocks it
   const newly = Object.entries(UNLOCK_AT).filter(([k,n])=>n<=L.n && !save[k]).map(([k])=>k);
@@ -1406,6 +1449,7 @@ function levelCleared(){
   if(restored) rows.push([restored>1?'Keys repaired':'Key repaired',`${maxStrikes(r.char)-r.strikes} of ${maxStrikes(r.char)} left`]);
   if(presUp) rows.push(['Unlocked',`${SW(r.pressure+1)} for ${CHARS[r.char].name}`]);
   if(fnUp) rows.push(['Unlocked','Fn Keys, a pack of joke levels on the menu']);
+  if(endUp) rows.push(['Unlocked','Endless, after level 12 on the menu']);
   $('clStats').innerHTML = rows.map(([a,b])=>`<dt>${a}</dt><dd>${b}</dd>`).join('');
   $('clGo').textContent = L.n===12 ? 'Main menu' : L.n===8 && save.maxReached<9 ? 'Continue' : `Night ${L.n+1}`; // don't spoil night 9 on the level 8 clear
   $('clMenu').hidden = L.n===12; $('clHint').textContent='';
@@ -1572,9 +1616,12 @@ function drawDeath(){
     ctx.restore(); }
 }
 function die(quiet){
-  const r=G.run; if(!NODMG && !r.fn) save.best=Math.max(save.best,Math.floor(r.score)); persist();
+  const r=G.run; if(!NODMG && !r.fn && !r.endless) save.best=Math.max(save.best,Math.floor(r.score)); persist();
   setMode('dead'); if(!quiet){ SFX.music(null); SFX.die(); }
   $('deadRun').innerHTML = runTagHTML(r);
+  if(r.endless){ const k=G.lvl.ew?G.lvl.ew.wave:1, n=G.lvl.etotal||0, key=endKey(r), prev=save.endless[key]||0, nb=!NODMG && n>prev; if(nb){ save.endless[key]=n; persist(); }
+    $('deadTitle').textContent = r.struckOut ? `Out of keys on wave ${k}` : `Fell on wave ${k}`; $('deadMetrics').innerHTML = metricsHTML(r);
+    $('deadStats').innerHTML = [['Words destroyed',n],['Wave reached',k],['Best',nb?`${n} (new best)`:Math.max(prev,n)]].map(([a,b])=>`<dt>${a}</dt><dd>${b}</dd>`).join(''); return; }
   $('deadTitle').textContent = r.fn ? `Fell in ${G.lvl.cfg.fn.name}` : r.struckOut ? `Out of keys on night ${r.level}` : `Fell on night ${r.level}`;
   $('deadMetrics').innerHTML = metricsHTML(r);
   $('deadStats').innerHTML = (r.fn ? [['Difficulty',`Like level ${r.startLevel}`],['Words typed',`${G.lvl.correct} of ${G.lvl.cfg.req}`],['Score',Math.floor(r.score)],['Best',(save.fn[G.lvl.cfg.fn.id]||{})[r.startLevel]||0]] : [['Started at',`Level ${r.startLevel}`],['Levels cleared',r.levelsCleared],['Score',Math.floor(r.score)],['Best',save.best]])
@@ -1654,12 +1701,13 @@ function submit(){
   if(r.char==='arsten'){ if(!r.dirty && !errs){ r.clean++; M.cleanWords++; M.bestClean=Math.max(M.bestClean,r.clean); const g=Math.min(cleanHeal(r.clean),maxHP()-r.hp); if(g>0){ r.hp+=g; M.cleanHP+=g; } if(!r.strikesOn && cleanHeal(r.clean)>cleanHeal(r.clean-1)) shimmer(); } else { r.clean=0; r.charge=0; } }
   r.dirty=false;
   // only the level's required words count and score: no viruses, backfire words, or leftovers once the quota (or boss phase quota) is met
-  const Lc=G.lvl.cfg, cap = Lc.phases ? Lc.phases.slice(0,(G.lvl.phase||0)+1).reduce((t,p)=>t+p.n,0) : Lc.req;
+  const Lc=G.lvl.cfg, cap = Lc.endless ? G.lvl.ew.n : Lc.phases ? Lc.phases.slice(0,(G.lvl.phase||0)+1).reduce((t,p)=>t+p.n,0) : Lc.req;
   const counts = !target.virus && !target.backfire && !G.lvl.ascent && G.lvl.correct<cap;
   if(counts){ M.typed++; crWord(target.text); if(/[qxz]/.test(target.text)) r.cr.qxz=(r.cr.qxz||0)+1; } // run total of required words, matching what scores
   const share = 0.7*POT[Lc.n-1]/Lc.req*(1+0.1*r.pressure);
   if(countable(target)) G.lvl.caught=(G.lvl.caught||0)+1;
   if(counts){ r.score+=share; G.lvl.levelScore+=share; }
+  if(Lc.endless && (counts || target.breath)){ G.lvl.etotal++; r.score=G.lvl.etotal; } // endless scores words destroyed
   if(target.virus && r.char==='vira' && r.strikesOn && r.strikes>0 && target.effect && VIRUSES[target.effect].good){ r.strikes--; popup(b,'key repaired','#a77bf2',-24); } // Three Strikes: a good virus she shoots erases a strike
   if(target.boss){ const pts = share*3; r.score+=pts; G.lvl.levelScore+=pts; popup(b,`final word +${fmt(pts)}`,LCOL[Lc.n-1],-24); SFX.clear(); }
   if(target.virus) triggerVirus(target.effect||rollVirus(),b); else if(counts) G.lvl.correct++;
@@ -1674,6 +1722,7 @@ function submit(){
     if(hits.length){ SFX.pop(); if(!reduced) G.fx.push({k:'ring',t:0,life:.45,x:b.x+b.w/2,y:b.y+b.h/2,r:Math.max(b.w,BH*3)}); r.m.overlap+=hits.length; popup(b,`overlap ×${hits.length}`,'#b8ec62',20);
       if(r.strikesOn){ r.ovKills=(r.ovKills||0)+1; if(r.ovKills>=NEIO_OV && r.strikes>0){ r.ovKills-=NEIO_OV; r.strikes--; popup(b,'key repaired','#b8ec62',-24); } if(r.strikes===0) r.ovKills=Math.min(r.ovKills,NEIO_OV); } } // Three Strikes: every NEIO_OV overlap submissions (any submit that clears 2+ words) erase a strike (Jihu v121)
   }
+  if(Lc.endless && target.breath && G.lvl.ew.phase==='breath'){ SFX.clear(); nextWave(); }
   if(inStand() && !G.lvl.finaleT && target.breath){ G.words=G.words.filter(o=>o.virus); finale(target,b); }
 }
 // final challenge (Jihu v129, "one breath"): once Last Stand's count is done and the screen is clear, one very long word falls slowly with backspace off;
@@ -1771,14 +1820,14 @@ function update(dt){
     if(G.lvl.rv===1 && G.lvl.correct>=L.req && !G.words.length){ G.lvl.rv=2; G.lvl.finalAt=G.t+1.6; G.lvl.flashT=G.t; SFX.clearCall(); }
     if(G.lvl.rv===2 && !G.lvl.finalOut && G.t>=G.lvl.finalAt){ G.lvl.finalOut=true; spawnFinal(L); }
   }
-  const done = A ? A.i>=A.words.length : drill ? G.lvl.drillCorrect>=target : B4 ? !!G.lvl.finalOut : G.lvl.correct>=target;
+  const done = L.endless&&!drill ? (G.lvl.ew.phase!=='run' || G.lvl.correct>=G.lvl.ew.n) : A ? A.i>=A.words.length : drill ? G.lvl.drillCorrect>=target : B4 ? !!G.lvl.finalOut : G.lvl.correct>=target;
   if(A){ if(!done && G.t>=A.next) spawnAscent(); }
   else if(!done && !(B4 && (G.lvl.correct>=L.req || (!G.lvl.rv && G.lvl.correct>=B4.at)))){
-    const lull = !drill && (L.phases||B4) && (G.t<(G.lvl.lullUntil||0) || (L.phases && phaseAt(L,G.lvl.correct)>G.lvl.phase)), wps = (!drill && L.phases) ? L.phases[G.lvl.phase||0].wps : L.wps;
+    const lull = !drill && (L.phases||B4||L.endless) && (G.t<(G.lvl.lullUntil||0) || (L.phases && phaseAt(L,G.lvl.correct)>G.lvl.phase)), wps = (!drill && L.phases) ? L.phases[G.lvl.phase||0].wps : L.endless ? G.lvl.ew.wps : L.wps;
     if(!spawnBlocked() && !lull) G.lvl.spawnT-=dt*spawnMul();
     if(G.lvl.spawnT<=0){ // the gap after a word scales with its length (Jihu 2026-11-19), normalized so the letters-per-second target matches the level's WPM
       const VN=G.run.pressure>=4?15:VIRUS_EVERY, vf=(!drill && !L.fn) ? VN/(VN-1) : 1; // viruses take 1 slot in VN, so spawn that much faster to keep the word rate (Jihu 2026-11-19)
-      const text=spawn(), avg=(!drill && L.phases) ? L.phases[G.lvl.phase||0].avgLen : L.avgLen, rate=(drill?Math.min(wps,0.35):wps)*(avg+1)*vf*(B4 ? (G.lvl.rv===1 ? B4.speed||1 : !G.lvl.rv ? B4.p1||1 : 1) : 1);
+      const text=spawn(), avg=(!drill && L.phases) ? L.phases[G.lvl.phase||0].avgLen : L.endless ? G.lvl.ew.avg : L.avgLen, rate=(drill?Math.min(wps,0.35):wps)*(avg+1)*vf*(B4 ? (G.lvl.rv===1 ? B4.speed||1 : !G.lvl.rv ? B4.p1||1 : 1) : 1);
       G.lvl.spawnT += (text ? (text.length+1)/rate : 1/((drill?Math.min(wps,0.35):wps)*vf)) * (pOn(2) ? 0.6+0.8*Math.random() : 1); } // Brown: uneven gaps, same average
   }
   // movement
@@ -1797,7 +1846,8 @@ function update(dt){
     }
   }
   if(vOn('stasis') && G.words.length===0) G.vfx.stasis=0; // a clear screen ends the freeze
-  if(done && G.words.length===0){ if(drill){G.lvl.drillDone=true;fadeTo(beginPlay,0.3,0,0.45);} else if(inStand()){ const F=G.lvl.breath; if(!F) G.lvl.breath={next:G.t+1.8}; else if(!G.lvl.finaleT){ if(G.t>=F.next) spawnBreath(); } else if(!G.lvl.finaleOut && G.t>=G.lvl.finaleT+2.6){ G.lvl.finaleOut=true; fadeTo(levelCleared,1.6,0.6,1.0,'#fff0dc'); } }
+  if(!drill && L.endless) endlessTick();
+  else if(done && G.words.length===0){ if(drill){G.lvl.drillDone=true;fadeTo(beginPlay,0.3,0,0.45);} else if(inStand()){ const F=G.lvl.breath; if(!F) G.lvl.breath={next:G.t+1.8}; else if(!G.lvl.finaleT){ if(G.t>=F.next) spawnBreath(); } else if(!G.lvl.finaleOut && G.t>=G.lvl.finaleT+2.6){ G.lvl.finaleOut=true; fadeTo(levelCleared,1.6,0.6,1.0,'#fff0dc'); } }
     else { const n=G.lvl.cfg.n, boss=!G.lvl.cfg.fn&&(n===4||n===8||n===12); fadeTo(levelCleared, G.lvl.ascent?1.6:boss?1.0:0.5, G.lvl.ascent?0.6:boss?0.35:0.1, boss?0.7:0.45); } }
 }
 function viraDodge(b,w){ G.lastHit={w,b:{...b},t:G.t};
@@ -2141,6 +2191,9 @@ function drawCharStatus(){
 const BOSS_COLS = {4:['#52d98a','#f4c430'], 8:['#52d98a','#f4c430'], 12:['#62c9f2','#52d98a','#f4c430','#ef6461']}; // blue, green, yellow, red (Jihu); blue only on level 12
 function bossBarState(){
   const L=G.lvl.cfg, c=G.lvl.correct;
+  if(L.endless){ const E=G.lvl.ew; if(!E) return null; // endless: one bar per wave, numbered; a boss wave ends on a thin layer drained by the one-breath word
+    if(E.phase==='breath'){ const f=G.words.find(w=>w.breath); let frac=1; if(f){ let k=0; const inp=G.input; while(k<inp.length && inp[k]===f.text[k]) k++; frac=1-k/f.text.length; } return {layers:E.wave+2, idx:E.wave, frac, gold:true}; }
+    return {layers:E.wave+2, idx:E.wave, frac:Math.max(0,1-c/E.n), gold:false}; }
   if(L.phases){ const ph=G.lvl.phase||0, start=L.phases.slice(0,ph).reduce((t,p)=>t+p.n,0), n=L.phases[ph].n;
     return {layers:L.phases.length, idx:ph, frac:Math.max(0,1-(c-start)/n), gold:false}; }
   if(L.mini){ const M=L.mini, rv=G.lvl.rv||0;
@@ -2153,9 +2206,9 @@ function bossBarState(){
 }
 function drawBossBar(){
   if(!G.lvl || G.lvl.drill || G.lvl.ascent) return;
-  const L=G.lvl.cfg; if(!L.phases && !L.mini) return;
+  const L=G.lvl.cfg; if(!L.phases && !L.mini && !L.endless) return;
   const S=bossBarState(); if(!S) return;
-  const cols=BOSS_COLS[L.n]||BOSS_COLS[12], colOf=i=> i>=cols.length ? '#ef6461' : cols[i];
+  const cols=BOSS_COLS[L.n]||BOSS_COLS[12], colOf=i=> L.endless ? endCol(i) : i>=cols.length ? '#ef6461' : cols[i];
   const total=S.layers-1-S.idx+S.frac;
   if(G.lvl.bbIdx!==S.idx){ if(G.lvl.bbIdx!=null) G.lvl.bbCrack=G.t; G.lvl.bbIdx=S.idx; G.lvl.bbTrail=total; }
   if(G.lvl.bbTrail==null || G.lvl.bbTrail<total) G.lvl.bbTrail=total;
@@ -2171,7 +2224,7 @@ function drawBossBar(){
   ctx.fillStyle='rgba(255,255,255,0.18)'; ctx.fillRect(x,y,bw*S.frac,Math.max(2,bh*0.3)); // top sheen
   const ck=G.lvl.bbCrack!=null ? (G.t-G.lvl.bbCrack)/0.5 : 1;
   if(ck<1 && !reduced){ ctx.globalAlpha=1-ck; ctx.fillStyle='#fff'; ctx.fillRect(x-3-ck*10,y-3-ck*4,bw+6+ck*20,bh+6+ck*8); ctx.globalAlpha=1; }
-  if(left>0){ ctx.fillStyle='#ebe6d6'; ctx.globalAlpha=0.8; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.font=`700 ${Math.round(Math.max(13,bh*1.4))}px 'IBM Plex Mono',monospace`; ctx.fillText('×'+(left+1),x+bw+10,y+bh/2); }
+  if(left>0){ ctx.fillStyle='#ebe6d6'; ctx.globalAlpha=0.8; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.font=`700 ${Math.round(Math.max(13,bh*1.4))}px 'IBM Plex Mono',monospace`; ctx.fillText(L.endless?String(S.idx):'×'+(left+1),x+bw+10,y+bh/2); }
   ctx.restore();
 }
 function drawCountdown(){
@@ -2342,10 +2395,12 @@ function renderMenu(){
     <ul>${sc.bullets.map(b=>`<li>${b}</li>`).join('')}</ul>`;
   // v180 (Jihu, like the Korean game): only 1-8 show until level 9 is reached, so 8 looks like the end; 9-12 then fade in once
   const show = save.maxReached>=9 ? 12 : 8, reveal = show===12 && !store.get(LK('seen9'),false); if(reveal) store.set(LK('seen9'),true);
-  $('lvls').style.setProperty('--nl',show); // v196 (Jihu): all levels on one row
+  const endOK = show===12 && save.endOpen; if(G.sel===13 && !endOK) G.sel=1;
+  $('lvls').style.setProperty('--nl',show+(endOK?1:0)); // v196 (Jihu): all levels on one row
   $('lvls').innerHTML = LEVELS.filter(L=>L.n<=show).map(L=>{
     const open = L.n<=6 || L.n<=save.maxReached; // 7-8 stay locked until reached, so their traps are a surprise
-    return `<button class="lvl${reveal&&L.n>8?' reveal':''}" style="--lc:${LCOL[L.n-1]};${reveal&&L.n>8?`animation-delay:${0.35+(L.n-9)*0.28}s`:''}" data-l="${L.n}" aria-pressed="${G.sel===L.n}" ${open?'':'disabled'}><span class="n">${L.n}</span><span class="t">${open?TITLES[L.n-1]:''}</span></button>`;}).join('');
+    return `<button class="lvl${reveal&&L.n>8?' reveal':''}" style="--lc:${LCOL[L.n-1]};${reveal&&L.n>8?`animation-delay:${0.35+(L.n-9)*0.28}s`:''}" data-l="${L.n}" aria-pressed="${G.sel===L.n}" ${open?'':'disabled'}><span class="n">${L.n}</span><span class="t">${open?TITLES[L.n-1]:''}</span></button>`;}).join('')
+    + (endOK ? `<button class="lvl" style="--lc:#ebe6d6" data-l="13" aria-pressed="${G.sel===13}"><span class="n">∞</span><span class="t">Endless</span></button>` : ''); // v201: endless after level 12
   const STEM='<svg class="stem" viewBox="0 0 40 40" aria-hidden="true"><defs><linearGradient id="silv" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".45" stop-color="#9aa4b0"/><stop offset=".55" stop-color="#e6eaef"/><stop offset="1" stop-color="#7c8692"/></linearGradient></defs><rect x="2" y="2" width="36" height="36" rx="6" class="hs"/><circle cx="20" cy="20" r="12" class="gl"/><path d="M17 9h6v8h8v6h-8v8h-6v-8H9v-6h8z" class="cr"/></svg>';
   const pmax = Math.min(8,(save.pressure[G.char]??-1)+1); if(G.pres>pmax) G.pres=pmax;
   $('pres').innerHTML = PRESSURES.map(([n,,c],i)=>`<button class="sw sw-${n.toLowerCase()}" style="--pc:${c}" data-p="${i}" aria-pressed="${G.pres===i}" ${i<=pmax?'':'disabled'}>${STEM}<span class="l">${n}</span></button>`).join('');
@@ -2359,7 +2414,7 @@ function renderMenu(){
     arsten:'Three keys. 15 clean words in a row charge a repair. It fixes a broken key on your next clean word.', neio:'Only two keys. Every 3 submissions that clear two or more words through overlap repair one.',
     vira:'Three keys. Bad viruses she lets fall are harmless, and each good virus she shoots repairs a key.'}; // per character Three Strikes rules (Jihu v118)
   $('strikesMeta').innerHTML = !sOK ? 'Opens with the Brown switch or higher.' : `No HP. Each fallen word breaks a glass key, and the run ends when the last one breaks. Each clear repairs one. No green words or Outbreak virus.<br><span style="color:${CHARS[G.char].hex}">${cn}</span>: ${S3[G.char]}`;
-  $('start').textContent = `Start level ${G.sel} as ${CHARS[G.char].name}${G.pres?` · ${SW(G.pres)}`:''}${sOn?' · Glass keys':''}`;
+  $('start').textContent = G.sel===13 ? `Start endless as ${CHARS[G.char].name}${G.pres?` · ${SW(G.pres)}`:''}${sOn?' · Glass keys':''}` : `Start level ${G.sel} as ${CHARS[G.char].name}${G.pres?` · ${SW(G.pres)}`:''}${sOn?' · Glass keys':''}`;
   const fnOpen = save.fnOpen || Object.keys(save.pressure).length>0; $('fnOpenBtn').hidden=!fnOpen;
   if(fnOpen){
     const fmax=save.maxReached>=9?9:8; if(G.fnD>fmax) G.fnD=fmax; // the slider stops at 8 until level 9 is reached
@@ -2413,9 +2468,9 @@ $('devcred8').onclick=()=>devCredits(8);
 $('devcred12').onclick=()=>devCredits(12);
 { let armed=0; const b=$('devunlock'); // press twice within 3 s so it can't happen by accident
   b.onclick=()=>{ if(Date.now()-armed>3000){ armed=Date.now(); b.textContent='Press again to unlock all'; setTimeout(()=>{ if(Date.now()-armed>=3000) b.textContent='Unlock everything'; },3050); return; }
-    armed=0; store.set('vseen',Object.fromEntries(Object.keys(VIRUSES).map(k=>[k,1]))); renderVirusList(); save.neio=save.arsten=save.vira=true; save.maxReached=12; save.fnOpen=true; for(const k in CHARS) save.pressure[k]=7; persist(); renderMenu(); b.textContent='Everything unlocked'; setTimeout(()=>b.textContent='Unlock everything',1500); }; }
+    armed=0; store.set('vseen',Object.fromEntries(Object.keys(VIRUSES).map(k=>[k,1]))); renderVirusList(); save.neio=save.arsten=save.vira=true; save.maxReached=12; save.fnOpen=true; save.endOpen=true; for(const k in CHARS) save.pressure[k]=7; persist(); renderMenu(); b.textContent='Everything unlocked'; setTimeout(()=>b.textContent='Unlock everything',1500); }; }
 { let armedR=0; const rb=$('devreset'); rb.onclick=()=>{ if(Date.now()-armedR>3000){ armedR=Date.now(); rb.textContent='Press again to reset'; setTimeout(()=>{ if(Date.now()-armedR>=3000) rb.textContent='Reset saved progress'; },3050); return; } armedR=0; rb.textContent='Progress reset'; setTimeout(()=>rb.textContent='Reset saved progress',1500); resetAll(); }; }
-function resetAll(){store.set(LK("seen9"),false);store.set("vseen",{});save.neio=save.arsten=save.vira=false;save.maxReached=6;save.best=0;save.records={};save.pressure={};save.gold={};save.medal={};save.fn={};save.fnOpen=false;G.pres=0;for(const k in keyStats)delete keyStats[k];if(UNLOCK_AT[G.char])G.char='maki';save.char=G.char;persist();renderMenu();};
+function resetAll(){store.set(LK("seen9"),false);store.set("vseen",{});save.neio=save.arsten=save.vira=false;save.maxReached=6;save.best=0;save.records={};save.pressure={};save.gold={};save.medal={};save.fn={};save.fnOpen=false;save.endOpen=false;save.endless={};G.pres=0;for(const k in keyStats)delete keyStats[k];if(UNLOCK_AT[G.char])G.char='maki';save.char=G.char;persist();renderMenu();};
 function nextFromClear(){ const n=G.lvl.cfg.n; if(n>=12 || G.lvl.cfg.fn){toMenu();return;} startLevel(n+1,false); }
 
 // fades (Jihu v127): a black veil dips out and back in around the big moments; the game is frozen and keys are ignored meanwhile
