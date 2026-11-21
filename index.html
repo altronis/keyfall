@@ -1413,6 +1413,13 @@ const CLEAR_LINES = ['Your fingers know where home is.', `${NUMW[NEW_KEYS[1].len
   {colemak:'Your index fingers have filed a complaint.', qwerty:'Home was never really home on Qwerty.', dvorak:'The bottom row says hi. Reluctantly.'}[LAYOUT_ID],
   'Same finger, twice, and you survived it.',
   {colemak:'One hand did the work of two.', qwerty:'Your left hand is going to need a minute.', dvorak:'Your pinkies are on fire. Proudly.'}[LAYOUT_ID], null];
+// v209 (Jihu): a perfect clear (100% typed, full HP or no glass key broken) gets its own line instead of the usual one
+const PERFECT_LINES = ['Not a single key out of place.', "Your hands didn't even notice they were learning.", 'You wandered off and never once got lost.', 'Amateur hour never even started.',
+  'Not one beat missed.', 'Twenty-six letters. Zero mistakes.', 'Every leftover key, accounted for.', 'Nothing got past you. Nothing.',
+  {colemak:"Your index fingers didn't even complain.", qwerty:'Who needs the home row anyway?', dvorak:'The bottom row says thank you. Sincerely.'}[LAYOUT_ID],
+  'Same finger, twice, and never once a slip.',
+  {colemak:'Your other hand can come back now.', qwerty:"Your left hand didn't even break a sweat.", dvorak:'Your pinkies are fine. Somehow.'}[LAYOUT_ID],
+  'The words never stood a chance.'];
 function levelCleared(){
   const L=G.lvl.cfg, r=G.run;
   if(L.fn) return fnCleared();
@@ -1423,6 +1430,7 @@ function levelCleared(){
   if(golden && !NODMG){ save.gold[r.char]=true; persist(); }
   const pm = 1+0.1*r.pressure;
   const gr = gradeOf(pm); // graded before the clear repairs a glass key
+  const perfect = gr.t>0 && gr.c===gr.t && (r.strikesOn ? r.strikes===0 : Math.floor(r.hp)>=maxHP());
   let restored=0; if(r.strikesOn && r.strikes>0 && L.n<12){ restored=Math.min(r.char==='cole'?2:1, r.strikes); r.strikes-=restored; } // Cole gets two back (Jihu v119: suits the long late levels) // each clear gives one strike back // Three Strikes: the bonus counts strikes left
   r.score += gr.pts; r.levelsCleared++;
   // clearing the boss at a pressure opens the next one for this character
@@ -1442,7 +1450,7 @@ function levelCleared(){
   const BOSS = {4:['','Not a beginner anymore.'], 8:['','You held the line.'], 12:['Final boss','You belong here.']}[L.n]; // v180 (Jihu): no beginner/mid boss labels, so level 8 can pass for the end
   $('clRun').innerHTML = runTagHTML(r);
   $('clLabel').textContent = BOSS&&BOSS[0] ? `Night ${L.n} survived · ${BOSS[0]} down` : `Night ${L.n} survived`;
-  $('clTitle').textContent = golden ? 'You carried it home.' : BOSS ? BOSS[1] : (CLEAR_LINES[L.n-1] || 'Cleared.');
+  $('clTitle').textContent = golden ? 'You carried it home.' : perfect ? PERFECT_LINES[L.n-1] : BOSS ? BOSS[1] : (CLEAR_LINES[L.n-1] || 'Cleared.');
   const rows = gradeRows(gr,LCOL[L.n-1]);
   if(head) rows.push([`Head start (levels 1 to ${r.startLevel-1})`,Math.round(head)]);
   if(newly.length) rows.push(['Unlocked',newly.map(k=>CHARS[k].name).join(', ')]);
