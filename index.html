@@ -391,6 +391,9 @@ h2{font-weight:900;font-stretch:78%;font-size:clamp(34px,5vw,54px);line-height:.
 .cdiff b{display:inline-flex;gap:4px}
 .cdiff i{width:14px;height:12px;border-radius:3px;background:#2a3047;box-shadow:0 2px 0 #11141f}
 .cdiff i.on{background:var(--c);box-shadow:0 2px 0 color-mix(in srgb,var(--c) 45%,#000)}
+.egg{position:absolute;left:50%;bottom:calc(100% + 12px);display:flex;align-items:center;gap:9px;white-space:nowrap;font-family:var(--body);font-size:16px;padding:7px 13px;border-radius:9px;background:rgba(10,13,24,.88);border:1.5px solid var(--c);color:var(--c);pointer-events:none;z-index:5;animation:egg 3.2s ease forwards}
+.egg .glyph{width:22px;height:22px}
+@keyframes egg{0%{opacity:0;transform:translate(-50%,6px)}8%{opacity:1;transform:translate(-50%,0)}80%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,0)}}
 </style>
 
 <div id="app">
@@ -1765,7 +1768,18 @@ function finale(w,b){ // the last word of Last Stand rises apart in slow motion,
 }
 function vaxHeal(b){ SFX.heal(); const hv=10; G.run.hp=Math.min(maxHP(),G.run.hp+hv); popup(b,`+${hv} HP`,'#7cc8f5',-24); flashHP('heal'); } // Arsten gets this heal too (Jihu v175)
 function heal(b){ if(G.run.char==='arsten') return; SFX.heal(); const hv=50; G.run.hp=Math.min(maxHP(),G.run.hp+hv); popup(b,`+${hv} HP`,'#52d98a',-24); flashHP('heal'); }
+// v210 (Jihu): typing a character's name (with no word to match) gets a little reaction above the typing box. Still a miss.
+const EGGS = {maki:['Maki waves. Keep typing.',"Yes, that's me. Eyes on the words."], cole:["Cole gives you a thumbs up. He's stretching.","Calling your own name? That's a stun."],
+  arsten:['Arsten is judging your backspace usage.','Clean hands. Not clean priorities.'], neio:['Neio pretends not to hear.','Neio is technically a word. Neio would rather not be typed.'],
+  vira:['Vira is busy with a sample. Probably a virus.',"That's not a virus. That's you."]};
+function egg(typed){ const k=typed.toLowerCase(), cell=$('input').parentElement; let html, col;
+  if(k==='colemak'){ html=GLYPH.cole+GLYPH.maki+'<span>Cole and Maki both look up.</span>'; col='#ebe6d6'; }
+  else if(EGGS[k]){ const me=G.run && G.run.char===k; html=GLYPH[k]+`<span>${EGGS[k][me?1:0]}</span>`; col=CHARS[k].hex; }
+  else return;
+  for(const o of cell.querySelectorAll('.egg')) o.remove();
+  const d=document.createElement('div'); d.className='egg'; d.style.setProperty('--c',col); d.innerHTML=html; cell.appendChild(d); setTimeout(()=>d.remove(),3300); }
 function fail(typed){
+  if(G.mode==='play') egg(typed);
   // per-key stats against the closest on-screen word
   let best=null,bd=1e9;
   for(const w of G.words){let d=Math.abs(w.text.length-typed.length);for(let i=0;i<Math.min(w.text.length,typed.length);i++)if(w.text[i]!==typed[i])d++;if(d<bd){bd=d;best=w;}}
