@@ -1430,6 +1430,7 @@ function levelCleared(){
   if(L.n>=8 && !NODMG && r.pressure>(save.pressure[r.char]??-1)){ save.pressure[r.char]=r.pressure; presUp = r.pressure<8; }
   // head start for skipped levels is paid only once the starting level is beaten
   let fnUp=false; if(L.n>=8 && !save.fnOpen){ save.fnOpen=true; fnUp=true; }
+  const hid9 = save.maxReached<9; if(L.n<12 && L.n+1>save.maxReached) save.maxReached=L.n+1; // v204 (Jihu): clearing a level opens the next one, even if you go back to the menu (clearing 8 reveals 9-12)
   let endUp=false; if(L.n===12 && !save.endOpen){ save.endOpen=true; endUp=true; } // v201: clearing level 12 opens Endless on this layout
   let head=0; if(!r.headStartPaid){ r.headStartPaid=true; head=r.autoScore; r.score+=head; }
   // clearing a character's level or any later one unlocks it
@@ -1451,7 +1452,7 @@ function levelCleared(){
   if(fnUp) rows.push(['Unlocked','Fn Keys, a pack of joke levels on the menu']);
   if(endUp) rows.push(['Unlocked','Endless, after level 12 on the menu']);
   $('clStats').innerHTML = rows.map(([a,b])=>`<dt>${a}</dt><dd>${b}</dd>`).join('');
-  $('clGo').textContent = L.n===12 ? 'Main menu' : L.n===8 && save.maxReached<9 ? 'Continue' : `Night ${L.n+1}`; // don't spoil night 9 on the level 8 clear
+  $('clGo').textContent = L.n===12 ? 'Main menu' : L.n===8 && hid9 ? 'Continue' : `Night ${L.n+1}`; // don't spoil night 9 on the level 8 clear
   $('clMenu').hidden = L.n===12; $('clHint').textContent='';
   $('clMetrics').hidden = L.n!==12; if(L.n===12) $('clMetrics').innerHTML = metricsHTML(r);
   if(L.n===8 || L.n===12) showCredits(L.n); // funny credits roll over the clear screen; Enter skips
